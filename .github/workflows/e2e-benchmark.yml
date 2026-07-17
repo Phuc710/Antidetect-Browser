@@ -1,0 +1,38 @@
+name: Run Benchmarks
+
+on:
+    # Triggers the workflow every Monday at 5am
+    workflow_dispatch:
+
+jobs:
+    run_benchmark:
+        runs-on: ubuntu-22.04
+
+        steps:
+            - uses: actions/checkout@v6
+              with:
+                  token: ${{ secrets.APIFY_SERVICE_ACCOUNT_GITHUB_TOKEN }}
+            - name: Use Node.js 22
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+
+            - uses: apify/actions/pnpm-install@v1.1.2
+
+            - name: Install browsers
+              run: pnpm exec playwright install
+
+            - name: Build the project
+              run: pnpm build
+
+            - name: Run benchmarks
+              run: pnpm benchmark
+
+            - name: Update the benchmark report
+              uses: stefanzweifel/git-auto-commit-action@v7
+              with:
+                  commit_message: 'chore: [skip-ci] update benchmark results'
+                  branch: master
+                  file_pattern: '**/report.png'
+                  commit_user_name: 'Mark Bench[bot] 💪🏼'
+                  commit_user_email: markbench[bot]@users.noreply.github.com

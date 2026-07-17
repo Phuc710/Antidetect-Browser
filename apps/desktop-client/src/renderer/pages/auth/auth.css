@@ -1,0 +1,323 @@
+/* Auth Container */
+.auth-container {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-void);
+}
+
+.auth-card {
+  width: 100%;
+  max-w: 360px; /* Thon gọn hơn */
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-graphite);
+  background-color: var(--color-carbon);
+  padding: 32px;
+  box-shadow: var(--shadow-xl);
+}
+
+/* Auth Header */
+.auth-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+.auth-header__icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-graphite);
+  background-color: var(--color-obsidian);
+}
+
+.auth-header__icon {
+  width: 20px;
+  height: 20px;
+  color: var(--color-signal-teal);
+}
+
+.auth-header__title {
+  font-size: var(--text-body-lg);
+  font-weight: var(--font-weight-w510);
+  color: var(--color-paper);
+  letter-spacing: var(--tracking-body-lg);
+}
+
+.auth-header__subtitle {
+  margin-top: 4px;
+  font-size: var(--text-caption);
+  color: var(--color-ash);
+}
+
+/* Success Card */
+.auth-card--success {
+  text-align: center;
+}
+
+.auth-card__success-icon-wrapper {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-card__success-icon-circle {
+  display: flex;
+  height: 48px;
+  width: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background-color: rgba(39, 166, 68, 0.1);
+  border: 1px solid rgba(39, 166, 68, 0.2);
+}
+
+.auth-card__success-icon {
+  height: 20px;
+  width: 20px;
+  color: var(--color-pulse-green);
+}
+
+.auth-card__success-title {
+  font-size: var(--text-body-sm);
+  font-weight: var(--font-weight-w510);
+  color: var(--color-paper);
+  margin-bottom: 8px;
+}
+
+.auth-card__success-message {
+  font-size: var(--text-caption);
+  color: var(--color-ash);
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.auth-card__success-email {
+  font-weight: var(--font-weight-w510);
+  color: var(--color-mist);
+}
+
+.auth-card__back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-caption);
+}
+
+.auth-card__back-icon {
+  height: 14px;
+  width: 14px;
+}
+
+/* Auth Form & Input Groups */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-form__error-box {
+  margin-bottom: 16px;
+  border-radius: var(--radius-inputs);
+  border: 1px solid rgba(235, 87, 87, 0.2);
+  background-color: rgba(235, 87, 87, 0.05);
+  padding: 10px 12px;
+}
+
+.auth-form__error-text {
+  font-size: var(--text-caption);
+  color: var(--color-coral-red);
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group--last {
+  margin-bottom: 20px;
+}
+
+.form-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.form-group__label {
+  display: block;
+  font-size: var(--text-caption);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-mist);
+}
+
+.form-group__input-wrapper {
+  position: relative;
+}
+
+.form-group__input {
+  width: 100%;
+  border-radius: var(--radius-inputs);
+  border: 1px solid var(--color-graphite);
+  background-color: rgba(255, 255, 255, 0.01);
+  padding: 10px 12px;
+  font-size: var(--text-caption);
+  color: var(--color-paper);
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.form-group__input--password {
+  padding-right: 36px;
+}
+
+.form-group__input::placeholder {
+  color: var(--color-ash);
+}
+
+.form-group__input:focus {
+  border-color: var(--color-fog);
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.form-group__input--error {
+  border-color: rgba(235, 87, 87, 0.5);
+}
+
+.form-group__input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Password Toggle Button */
+.form-group__toggle-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--color-ash);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
+
+.form-group__toggle-btn:hover {
+  color: var(--color-mist);
+}
+
+.form-group__error-msg {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-coral-red);
+}
+
+/* Primary Action Button (Acid Lime) */
+.auth-form__submit-btn {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-buttons);
+  background-color: var(--color-acid-lime);
+  border: 0;
+  padding: 10px 16px;
+  font-size: var(--text-caption);
+  font-weight: var(--font-weight-w510);
+  color: var(--color-void);
+  cursor: pointer;
+  transition: background-color 100ms ease, opacity 100ms ease;
+}
+
+.auth-form__submit-btn:hover {
+  background-color: #d2e01b; /* Hơi tối hơn chút */
+}
+
+.auth-form__submit-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.auth-form__submit-icon {
+  height: 14px;
+  width: 14px;
+}
+
+/* Links */
+.auth-link {
+  color: var(--color-fog);
+  text-decoration: none;
+  transition: color 100ms ease;
+}
+
+.auth-link:hover {
+  color: var(--color-paper);
+  text-decoration: underline;
+}
+
+.auth-link--small {
+  font-size: 12px;
+}
+
+.auth-link--button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--radius-buttons);
+  background-color: var(--color-acid-lime);
+  padding: 10px 18px;
+  font-size: var(--text-caption);
+  font-weight: var(--font-weight-w510);
+  color: var(--color-void);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 100ms ease;
+}
+
+.auth-link--button:hover {
+  background-color: #d2e01b;
+}
+
+.auth-form__footer-text {
+  margin-top: 16px;
+  text-align: center;
+  font-size: var(--text-caption);
+  color: var(--color-ash);
+}
+
+/* Spinner Animation */
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-void);
+  border-top-color: transparent;
+  animation: spin 800ms linear infinite;
+}
+
+.spinner--accent {
+  border-color: var(--color-acid-lime);
+  border-top-color: transparent;
+}
+
+.spinner--large {
+  width: 24px;
+  height: 24px;
+  border-color: var(--color-acid-lime);
+  border-top-color: transparent;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
