@@ -2,9 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import { WindowService } from './windows/window-service.js';
 import { DatabaseService } from './services/database-service.js';
 import { AuthService } from './services/auth-service.js';
-import { ProxyService } from './services/proxy-service.js';
 import { registerAuthHandlers } from './ipc/handlers/auth-handlers.js';
-import { registerProxyHandlers } from './ipc/handlers/proxy-handlers.js';
 import { registerLocalApiHandlers } from './ipc/handlers/local-api-handlers.js';
 import { registerWindowHandlers } from './ipc/handlers/window-handlers.js';
 import { Logger } from './services/logger.js';
@@ -54,7 +52,6 @@ async function bootstrap(): Promise<void> {
   await db.initialize();
 
   const authService = new AuthService(db);
-  const proxyService = new ProxyService(db);
   const {
     browserApplicationService: browserService,
     localApiService,
@@ -74,7 +71,6 @@ async function bootstrap(): Promise<void> {
 
   // Đăng ký IPC handlers TRƯỚC khi tạo window
   registerAuthHandlers(authService);
-  registerProxyHandlers(proxyService);
   registerLocalApiHandlers(db, localApiService);
   registerProfileHandlers(profileService, browserService);
 

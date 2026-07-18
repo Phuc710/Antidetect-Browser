@@ -1,3 +1,3 @@
-export * from './types/auth.js';
-export * from './types/desktop-api.js';
+export * from './contracts/auth.js';
+export * from './contracts/desktop-api.js';
 export * from './constants/ipc-channels.js';
