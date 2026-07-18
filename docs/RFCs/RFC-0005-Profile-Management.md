@@ -1,134 +1,93 @@
-# RFC-0005: Browser Profile Management
+# RFC-0005: Profiles Cache
 
-*   **Status**: Proposed
-*   **Author**: Desktop Lead
-*   **Decided**: 2026-07-16
+- **Status**: Draft
+- **Owner**: Desktop Runtime
+- **Last updated**: 2026-07-18
 
----
+## Summary
 
-## 1. Background
-Each browser session must be completely isolated — cookies, localStorage, IndexedDB, cache, extensions, and fingerprint configurations must never bleed between profiles.
+The desktop application keeps an authoritative local cache of profile metadata in SQLite. Browser storage remains isolated on disk by an opaque `storage_key`; paths supplied by a renderer or API client are never accepted.
 
-## 2. Problem Statement
-Without profile isolation, websites correlate sessions by shared storage artifacts. Even with different IPs and fingerprints, a shared `--user-data-dir` instantly links accounts.
+This RFC remains Draft until the project owner formally approves it.
 
-## 3. Goals
-- Full disk-level isolation per profile via dedicated `--user-data-dir`.
-- Profile metadata stored in local SQLite database.
-- CRUD operations for profiles via IPC API.
+## Scope
 
-## 4. Non-Goals
-- Cloud sync of profile data (see RFC-0014).
-- Cookie import/export UI (deferred to later milestone).
+- Local profile CRUD and optimistic version checks.
+- Migration of populated v2 profile and proxy-assignment data.
+- Browser runtime metadata required to select a compatible runtime.
+- Local cache, deletion and synchronization states.
 
-## 5. Functional Requirements
-- Create profile: generates UUID, creates folder, stores config.
-- Launch profile: reads config from SQLite, spawns Chromium.
-- Clone profile: duplicates config without copying cache data.
-- Delete profile: removes SQLite row and wipes `--user-data-dir` folder.
-- Import/Export: JSON export of profile config (no session data).
+Cloud synchronization, billing, teams and cloud profile leases are outside this RFC.
 
-## 6. Non-Functional Requirements
-- Profile creation < 100ms (disk I/O + SQLite write).
-- Support 500+ profiles in the list without UI lag.
-- Profile folder max size warning at 2GB.
+## Browser runtime identity
 
-## 7. Architecture
-```text
-profiles/
-└── {profileId}/
-    ├── cache/                 ← Chromium --user-data-dir
-    │   └── Default/
-    │       ├── Cookies        ← SQLite (Chromium-managed)
-    │       ├── Local Storage/
-    │       └── Network/
-    ├── extensions/            ← Profile-specific extensions
-    └── profile.json          ← Snapshot of current config
-```
+The following fields are independent and must not be collapsed into a single `browser` string:
 
-## 8. Sequence Diagram
-```mermaid
-sequenceDiagram
-    participant UI
-    participant Main
-    participant SQLite
-    participant Disk
-
-    UI->>Main: profile:create({ name, proxy, fingerprint })
-    Main->>Main: Generate UUID
-    Main->>Disk: mkdir profiles/{UUID}/cache
-    Main->>SQLite: INSERT INTO profiles VALUES(...)
-    SQLite-->>Main: OK
-    Main-->>UI: { profileId: UUID, success: true }
-```
-
-## 9. Data Model
-```sql
-CREATE TABLE profiles (
-  id          TEXT PRIMARY KEY,
-  name        TEXT NOT NULL,
-  os          TEXT NOT NULL DEFAULT 'windows',
-  browser     TEXT NOT NULL DEFAULT 'chrome',
-  proxy_host  TEXT,
-  proxy_port  INTEGER,
-  proxy_user  TEXT,
-  proxy_pass  TEXT,             -- encrypted with profile master key
-  fingerprint TEXT,             -- JSON blob
-  status      TEXT DEFAULT 'stopped',
-  user_data_dir TEXT NOT NULL,
-  created_at  INTEGER NOT NULL,
-  updated_at  INTEGER NOT NULL
-);
-```
-
-## 10. API Contract
-| IPC Channel | Payload | Response |
+| Field | Meaning | Examples |
 |---|---|---|
-| `profile:create` | `ProfileCreateDTO` | `Profile` |
-| `profile:update` | `{ id, ...partial }` | `Profile` |
-| `profile:delete` | `{ id }` | `{ success }` |
-| `profile:clone` | `{ id }` | `Profile` |
-| `profile:export` | `{ id }` | `ProfileExportJSON` |
+| `engine` | Rendering/automation engine | `chromium`, `firefox`, `webkit` |
+| `distribution` | Packaged browser product | `chromium`, `chrome`, `edge`, `brave`, `firefox`, `webkit`, `custom` |
+| `channel` | Release channel | `stable`, `beta`, `dev`, `canary`, `custom` |
+| `browser_version` | Requested runtime version | `latest`, `126.0.1` |
+| `architecture` | Runtime CPU architecture | `x64`, `arm64` |
 
-## 11. State Machine
-```
-Profile: STOPPED → LAUNCHING → RUNNING → CLOSING → STOPPED
-                                        ↘ CRASHED
-```
+Runtime availability is validated before launch. A stored profile is not rewritten merely because a requested runtime is unavailable on the current device.
 
-## 12. Configuration
-- Default `userDataDir` root: `%APPDATA%\MidnightBrowser\profiles\` (Windows)
-- Max profiles per workspace: 1000
+## SQLite model
 
-## 13. Error Handling
-- Duplicate profile name: return `DUPLICATE_NAME` error.
-- Disk full on create: return `INSUFFICIENT_DISK_SPACE` error.
-- Profile folder missing on launch: auto-recreate and warn user.
+`profiles_cache` stores profile identity, runtime identity, proxy reference, fingerprint envelope metadata, storage key, optimistic version, synchronization state and deletion state.
 
-## 14. Security Considerations
-- Proxy passwords stored encrypted with AES-256-GCM using derived key from user master password.
-- Profile IDs are UUIDs v4 (random), not sequential.
-- Delete operation uses secure wipe (overwrite before delete) for sensitive profile data.
+Important invariants:
 
-## 15. Performance
-- Profile list query uses SQLite index on `status` column.
-- Batch status updates via SQLite transactions (not one-by-one).
+1. `storage_key` is a single opaque path segment.
+2. `proxy_id` uses `ON DELETE SET NULL`.
+3. Profile deletion is represented by cache state before physical cleanup.
+4. Runtime state is not stored in `profiles_cache`; it is derived from `browser_sessions`.
+5. Browser credentials and proxy passwords are not stored in this table.
 
-## 16. Testing Strategy
-- Unit: SQLite CRUD operations, folder creation/deletion.
-- Integration: Full create→launch→stop→delete lifecycle.
-- Edge cases: Delete running profile, clone with proxy, disk full simulation.
+## Migration v3
 
-## 17. Rollout Plan
-- Ship with Milestone 3 (Database & Cloud Sync).
+Migration v3 upgrades a populated v2 database and must:
 
-## 18. Open Questions
-- Should we support profile groups/folders for organization?
-- Max concurrent running profiles per license tier?
+1. Preserve profile IDs, names, timestamps, notes, fingerprint payloads and valid proxy IDs.
+2. Preserve valid rows from `profile_proxy_assignments`.
+3. Convert the legacy `browser` value into independent runtime fields.
+4. Use `x64` only as the legacy architecture fallback; new profiles use the host architecture unless explicitly configured.
+5. Run in exactly one migration-runner transaction.
+6. Disable `PRAGMA foreign_keys` only outside that transaction and restore its original value in `finally`.
+7. Execute and assert `PRAGMA foreign_key_check` before commit.
+8. Roll back both schema changes and the `schema_migrations` record on failure.
 
-## 19. Future Improvements
-- Profile templates (pre-configured fingerprint presets).
-- Bulk import from CSV/JSON.
+## IPC boundary
 
-## 20. Appendix
-- See [RFC-0015](RFC-0015-SQLite-Database.md) for full database schema.
+All input is validated in the main process. Unknown fields, invalid enum members, unbounded strings and invalid pagination are rejected. Renderer types are not a security boundary.
+
+Profile runtime events and snapshots use the contract defined by RFC-0006.
+
+## Failure codes
+
+- `NOT_FOUND`
+- `VERSION_CONFLICT`
+- `PROFILE_RUNNING`
+- `VALIDATION_ERROR`
+- `BROWSER_ARCHITECTURE_MISMATCH`
+- `BROWSER_ENGINE_UNAVAILABLE`
+- `BROWSER_DISTRIBUTION_UNAVAILABLE`
+
+Internal errors and secrets are never returned across IPC.
+
+## Tests required before approval
+
+- Fresh migration and populated v2 upgrade.
+- Profile and proxy-assignment preservation.
+- Foreign-key violation rollback and PRAGMA restoration.
+- CRUD/version conflict behavior.
+- Storage-key traversal protection.
+- IPC validation and secret redaction.
+
+## Current limitations
+
+- Cloud synchronization is not implemented.
+- Cloud Lease is not implemented.
+- WebKit and custom/Brave runtime resolution are not implemented.
+- Secure wipe and profile import/export remain outside the stabilized runtime slice.
