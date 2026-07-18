@@ -223,6 +223,6 @@ Diff accounting:
 
 ## 16. Suggested Next Task
 
-Sau owner review, task kế tiếp nên là **RFC-0027A — Production Fingerprint Trust Bootstrap**: authenticated Cloud transport contract, owner-pinned Ed25519 key rotation bundle, license-backed offline-cache policy và xác nhận default CDP context errata.
+**DESKTOP-CORE-006 Code Review**.
 
-Không bắt đầu task đó trong DESKTOP-CORE-006.
+Không bắt đầu task khác trong DESKTOP-CORE-006.
