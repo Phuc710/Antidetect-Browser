@@ -6,17 +6,21 @@ import { RegisterPage } from '../pages/auth/RegisterPage.js';
 import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage.js';
 import { DashboardPage } from '../pages/dashboard/DashboardPage.js';
 import { ProfilesPage } from '../pages/profiles/ProfilesPage.js';
+import { ProxiesPage } from '../pages/proxies/ProxiesPage.js';
+import { SettingsPage } from '../pages/settings/SettingsPage.js';
 import { AppLayout } from '../layouts/AppLayout.js';
 import { AuthLayout } from '../layouts/AuthLayout.js';
 import { ProtectedRoute } from './ProtectedRoute.js';
 import { AuthRoute } from './AuthRoute.js';
+import { ToastContainer } from '../components/ui/Toast.js';
+import { authService } from '../services/auth-service.js';
 
 export function App(): JSX.Element {
   const { setUser, setLoading } = useAuthStore();
 
-  // Kiểm tra session khi app khởi động
+  // Kiểm tra session khi app khởi động qua AuthService (Singleton OOP)
   useEffect(() => {
-    window.desktop.auth.getMe()
+    authService.getMe()
       .then((user) => {
         setUser(user);
       })
@@ -30,6 +34,9 @@ export function App(): JSX.Element {
 
   return (
     <BrowserRouter>
+      {/* Toast notifications hiển thị chính giữa trên cùng (Center Top/Mid) cho toàn app */}
+      <ToastContainer />
+
       <Routes>
         {/* Auth routes — chỉ truy cập khi chưa đăng nhập */}
         <Route element={<AuthRoute />}>
@@ -45,6 +52,8 @@ export function App(): JSX.Element {
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profiles" element={<ProfilesPage />} />
+            <Route path="/proxies" element={<ProxiesPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
 

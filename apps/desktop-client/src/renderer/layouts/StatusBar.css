@@ -1,47 +1,48 @@
 .status-bar {
   display: flex;
-  height: 24px;
+  height: var(--statusbar-height, 28px);
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  border-top: 1px solid var(--color-graphite);
-  background-color: var(--color-carbon);
-  padding: 0 16px;
+  border-top: 1px solid var(--color-border-subtle);
+  background-color: var(--color-bg-header);
+  padding: 0 var(--space-4);
   user-select: none;
+  transition: background-color var(--duration-fast), border-color var(--duration-fast);
 }
 
 .status-bar__list {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .status-bar__item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--color-ash);
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
 }
 
 .status-bar__item--connected {
-  color: var(--color-pulse-green);
+  color: var(--color-success);
 }
 
 .status-bar__item--disconnected {
-  color: var(--color-coral-red);
+  color: var(--color-error);
 }
 
 .status-bar__item--idle {
-  color: var(--color-ash);
+  color: var(--color-text-muted);
 }
 
 .status-bar__item-icon {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
 }
 
 .status-bar__version {
-  font-size: 12px;
-  color: var(--color-ash);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
 }

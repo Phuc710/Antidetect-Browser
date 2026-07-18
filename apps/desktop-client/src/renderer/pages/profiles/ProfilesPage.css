@@ -226,6 +226,21 @@
   user-select: none;
 }
 
+.profile-table__th--select { width: 40px; }
+.profile-table__th--os { width: 120px; }
+.profile-table__th--status { width: 140px; }
+.profile-table__th--sync { width: 140px; }
+.profile-table__th--actions { width: 100px; text-align: right; }
+
+.profile-table__action-menu { position: relative; }
+
+.profile-table__skeleton-bar--name { width: 160px; }
+.profile-table__skeleton-bar--os { width: 80px; }
+.profile-table__skeleton-bar--status { width: 90px; }
+.profile-table__skeleton-bar--proxy { width: 200px; }
+.profile-table__skeleton-bar--sync { width: 100px; }
+.profile-table__skeleton-bar--actions { width: 60px; float: right; }
+
 .profile-table__row {
   height: var(--table-row-height);
   background-color: var(--color-table-row);

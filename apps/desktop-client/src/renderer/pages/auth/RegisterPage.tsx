@@ -1,6 +1,15 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { UserPlus, ShieldCheck } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  AlertCircle,
+  Check,
+  Eye,
+  EyeOff,
+  UserPlus,
+} from 'lucide-react';
+import { authService } from '../../services/auth-service.js';
+import { Spinner } from '../../components/ui/Spinner.js';
+import { AuthIdentitySection } from './AuthIdentitySection.js';
 import './auth.css';
 
 interface FormState {
@@ -15,223 +24,246 @@ interface FormErrors {
   email?: string;
   password?: string;
   confirmPassword?: string;
+  terms?: string;
   general?: string;
 }
 
-function validate(form: FormState): FormErrors {
+function validate(form: FormState, agreedTerms: boolean): FormErrors {
   const errors: FormErrors = {};
+
   if (!form.name.trim()) {
     errors.name = 'Vui lòng nhập họ và tên.';
   }
-  if (!form.email) {
+
+  const normalizedEmail = form.email.trim();
+  if (!normalizedEmail) {
     errors.email = 'Vui lòng nhập email.';
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
     errors.email = 'Email không đúng định dạng.';
   }
+
   if (!form.password) {
     errors.password = 'Vui lòng nhập mật khẩu.';
   } else if (form.password.length < 8) {
     errors.password = 'Mật khẩu phải có ít nhất 8 ký tự.';
   }
+
   if (form.password !== form.confirmPassword) {
     errors.confirmPassword = 'Mật khẩu xác nhận không khớp.';
   }
+
+  if (!agreedTerms) {
+    errors.terms = 'Bạn phải đồng ý với Điều khoản sử dụng.';
+  }
+
   return errors;
 }
 
 export function RegisterPage(): JSX.Element {
+  const navigate = useNavigate();
   const [form, setForm] = useState<FormState>({
-    name: '', email: '', password: '', confirmPassword: '',
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
   });
   const [errors, setErrors] = useState<FormErrors>({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [agreedTerms, setAgreedTerms] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   function handleChange(field: keyof FormState, value: string): void {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    if (errors[field] || errors.general) {
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        delete next.general;
-        return next;
-      });
-    }
+    setForm((current) => ({ ...current, [field]: value }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next[field];
+      delete next.general;
+      return next;
+    });
   }
 
-  async function handleSubmit(e: React.FormEvent): Promise<void> {
-    e.preventDefault();
-    const validationErrors = validate(form);
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    const validationErrors = validate(form, agreedTerms);
+
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
+
     setIsLoading(true);
     setErrors({});
 
     try {
-      await window.desktop.auth.register({
+      await authService.register({
         name: form.name.trim(),
         email: form.email.trim(),
         password: form.password,
       });
-      setSuccess(true);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Đăng ký tài khoản thất bại.';
+
+      // Đăng ký thành công -> chuyển sang đăng nhập
+      void navigate('/dang-nhap', { replace: true });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Đăng ký tài khoản thất bại.';
       setErrors({ general: message });
     } finally {
       setIsLoading(false);
     }
   }
 
-  if (success) {
-    return (
-      <div className="auth-container">
-        <div className="auth-card auth-card--success">
-          <div className="auth-card__success-icon-wrapper">
-            <div className="auth-card__success-icon-circle">
-              <ShieldCheck className="auth-card__success-icon" />
-            </div>
-          </div>
-          <h2 className="auth-header__title">Đăng ký thành công!</h2>
-          <p className="auth-header__subtitle">
-            Kiểm tra email để xác nhận tài khoản trước khi đăng nhập.
-          </p>
-          <div style={{ marginTop: '24px' }}>
-            <Link
-              to="/dang-nhap"
-              className="auth-link--button"
-            >
-              Về trang đăng nhập
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        {/* Logo */}
-        <div className="auth-header">
-          <div className="auth-header__icon-wrapper">
-            <ShieldCheck className="auth-header__icon" />
-          </div>
-          <div className="auth-header__text">
-            <h1 className="auth-header__title">Tạo tài khoản mới</h1>
-            <p className="auth-header__subtitle">Điền thông tin để bắt đầu</p>
-          </div>
-        </div>
+    <div className="login-page">
+      <AuthIdentitySection />
 
-        {/* Form */}
-        <form
-          onSubmit={(e) => void handleSubmit(e)}
-          className="auth-form"
-          noValidate
-        >
-          {/* General error */}
-          {errors.general && (
-            <div className="auth-form__error-box">
-              <p className="auth-form__error-text">{errors.general}</p>
-            </div>
-          )}
+      <section className="login-page__access" aria-labelledby="register-title">
+        <div className="login-panel">
+          <header className="login-panel__header">
+            <p className="login-panel__overline">Bắt đầu ngay hôm nay</p>
+            <h2 id="register-title" className="login-panel__title">Tạo tài khoản mới</h2>
+            <p className="login-panel__subtitle">
+              Điền thông tin để tạo workspace riêng của bạn.
+            </p>
+          </header>
 
-          {/* Name */}
-          <div className="form-group">
-            <label htmlFor="reg-name" className="form-group__label">
-              Họ và tên
-            </label>
-            <input
-              id="reg-name"
-              type="text"
-              autoComplete="name"
-              value={form.name}
-              onChange={(e) => handleChange('name', e.target.value)}
-              disabled={isLoading}
-              placeholder="Nguyễn Văn A"
-              className={`form-group__input ${errors.name ? 'form-group__input--error' : ''}`}
-            />
-            {errors.name && <p className="form-group__error-msg">{errors.name}</p>}
-          </div>
-
-          {/* Email */}
-          <div className="form-group">
-            <label htmlFor="reg-email" className="form-group__label">
-              Email
-            </label>
-            <input
-              id="reg-email"
-              type="email"
-              autoComplete="email"
-              value={form.email}
-              onChange={(e) => handleChange('email', e.target.value)}
-              disabled={isLoading}
-              placeholder="ten@email.com"
-              className={`form-group__input ${errors.email ? 'form-group__input--error' : ''}`}
-            />
-            {errors.email && <p className="form-group__error-msg">{errors.email}</p>}
-          </div>
-
-          {/* Password */}
-          <div className="form-group">
-            <label htmlFor="reg-password" className="form-group__label">
-              Mật khẩu
-            </label>
-            <input
-              id="reg-password"
-              type="password"
-              autoComplete="new-password"
-              value={form.password}
-              onChange={(e) => handleChange('password', e.target.value)}
-              disabled={isLoading}
-              placeholder="••••••••"
-              className={`form-group__input ${errors.password ? 'form-group__input--error' : ''}`}
-            />
-            {errors.password && <p className="form-group__error-msg">{errors.password}</p>}
-          </div>
-
-          {/* Confirm Password */}
-          <div className="form-group form-group--last">
-            <label htmlFor="reg-confirm" className="form-group__label">
-              Xác nhận mật khẩu
-            </label>
-            <input
-              id="reg-confirm"
-              type="password"
-              autoComplete="new-password"
-              value={form.confirmPassword}
-              onChange={(e) => handleChange('confirmPassword', e.target.value)}
-              disabled={isLoading}
-              placeholder="••••••••"
-              className={`form-group__input ${errors.confirmPassword ? 'form-group__input--error' : ''}`}
-            />
-            {errors.confirmPassword && <p className="form-group__error-msg">{errors.confirmPassword}</p>}
-          </div>
-
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="auth-form__submit-btn"
-          >
-            {isLoading ? (
-              <div className="spinner" />
-            ) : (
-              <UserPlus className="auth-form__submit-icon" />
+          <form className="login-form" onSubmit={(event) => void handleSubmit(event)} noValidate>
+            {errors.general && (
+              <div className="login-form__alert" role="alert" aria-live="polite">
+                <AlertCircle aria-hidden="true" />
+                <div><strong>Lỗi đăng ký</strong><span>{errors.general}</span></div>
+              </div>
             )}
-            {isLoading ? 'Đang tạo tài khoản...' : 'Đăng ký tài khoản'}
-          </button>
 
-          {/* Login link */}
-          <p className="auth-form__footer-text">
-            Đã có tài khoản?{' '}
-            <Link to="/dang-nhap" className="auth-link">
-              Đăng nhập ngay
-            </Link>
-          </p>
-        </form>
-      </div>
+            {/* Full Name */}
+            <div className="login-field">
+              <label className="login-field__label" htmlFor="register-name">Họ và tên</label>
+              <input
+                className={`login-field__input${errors.name ? ' login-field__input--error' : ''}`}
+                id="register-name"
+                type="text"
+                autoComplete="name"
+                placeholder="Nguyễn Văn A"
+                value={form.name}
+                onChange={(event) => handleChange('name', event.target.value)}
+                disabled={isLoading}
+                aria-invalid={Boolean(errors.name)}
+                aria-describedby={errors.name ? 'register-name-error' : undefined}
+              />
+              {errors.name && <span id="register-name-error" className="login-field__error">{errors.name}</span>}
+            </div>
+
+            {/* Email */}
+            <div className="login-field">
+              <label className="login-field__label" htmlFor="register-email">Email</label>
+              <input
+                className={`login-field__input${errors.email ? ' login-field__input--error' : ''}`}
+                id="register-email"
+                type="email"
+                autoComplete="email"
+                placeholder="name@company.com"
+                value={form.email}
+                onChange={(event) => handleChange('email', event.target.value)}
+                disabled={isLoading}
+                aria-invalid={Boolean(errors.email)}
+                aria-describedby={errors.email ? 'register-email-error' : undefined}
+              />
+              {errors.email && <span id="register-email-error" className="login-field__error">{errors.email}</span>}
+            </div>
+
+            {/* Password */}
+            <div className="login-field">
+              <label className="login-field__label" htmlFor="register-password">Mật khẩu</label>
+              <div className="login-field__control">
+                <input
+                  className={`login-field__input login-field__input--password${errors.password ? ' login-field__input--error' : ''}`}
+                  id="register-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Tối thiểu 8 ký tự"
+                  value={form.password}
+                  onChange={(event) => handleChange('password', event.target.value)}
+                  disabled={isLoading}
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={errors.password ? 'register-password-error' : undefined}
+                />
+                <button
+                  className="login-field__visibility"
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  disabled={isLoading}
+                  aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                >
+                  {showPassword ? <EyeOff /> : <Eye />}
+                </button>
+              </div>
+              {errors.password && <span id="register-password-error" className="login-field__error">{errors.password}</span>}
+            </div>
+
+            {/* Confirm Password */}
+            <div className="login-field">
+              <label className="login-field__label" htmlFor="register-confirm">Xác nhận mật khẩu</label>
+              <div className="login-field__control">
+                <input
+                  className={`login-field__input login-field__input--password${errors.confirmPassword ? ' login-field__input--error' : ''}`}
+                  id="register-confirm"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Nhập lại mật khẩu"
+                  value={form.confirmPassword}
+                  onChange={(event) => handleChange('confirmPassword', event.target.value)}
+                  disabled={isLoading}
+                  aria-invalid={Boolean(errors.confirmPassword)}
+                  aria-describedby={errors.confirmPassword ? 'register-confirm-error' : undefined}
+                />
+                <button
+                  className="login-field__visibility"
+                  type="button"
+                  onClick={() => setShowConfirmPassword((visible) => !visible)}
+                  disabled={isLoading}
+                  aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                >
+                  {showConfirmPassword ? <EyeOff /> : <Eye />}
+                </button>
+              </div>
+              {errors.confirmPassword && <span id="register-confirm-error" className="login-field__error">{errors.confirmPassword}</span>}
+            </div>
+
+            {/* Terms Checkbox */}
+            <label className="login-form__remember">
+              <input
+                type="checkbox"
+                checked={agreedTerms}
+                onChange={(event) => {
+                  setAgreedTerms(event.target.checked);
+                  setErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.terms;
+                    return next;
+                  });
+                }}
+                disabled={isLoading}
+              />
+              <span aria-hidden="true"><Check /></span>
+              Tôi đồng ý với Điều khoản & Chính sách bảo mật
+            </label>
+            {errors.terms && <span className="login-field__error">{errors.terms}</span>}
+
+            {/* Submit */}
+            <button className="button button--primary login-form__submit" type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <Spinner size="sm" />
+              ) : (
+                <UserPlus size={16} />
+              )}
+              {isLoading ? 'Đang tạo tài khoản...' : 'Đăng ký ngay'}
+            </button>
+
+            <p className="login-form__register">
+              Đã có tài khoản? <Link className="login-form__link" to="/dang-nhap">Đăng nhập</Link>
+            </p>
+          </form>
+        </div>
+      </section>
     </div>
   );
 }

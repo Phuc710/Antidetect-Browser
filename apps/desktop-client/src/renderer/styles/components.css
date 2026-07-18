@@ -170,6 +170,23 @@
   background-color: var(--color-status-error);
 }
 
+.status-indicator--crashed {
+  background-color: var(--color-error-soft);
+  color: var(--color-error);
+}
+.status-indicator--crashed .status-indicator__dot {
+  background-color: var(--color-error);
+  animation: pulseLight 0.6s infinite alternate;
+}
+
+.status-indicator--conflict {
+  background-color: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.status-indicator--conflict .status-indicator__dot {
+  background-color: var(--color-warning);
+}
+
 @keyframes pulseLight {
   from {
     opacity: 0.4;
@@ -177,4 +194,72 @@
   to {
     opacity: 1;
   }
+}
+
+/* Spinner Race Component — Unique Triple-ring animated loading spinner */
+.spinner-race {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  border: 4.5px solid transparent;
+  border-radius: 50%;
+  border-right-color: var(--color-brand-400, #367ff5);
+  animation: spinner-a4dj62 1.0s infinite linear;
+  box-sizing: border-box;
+}
+
+.spinner-race::before,
+.spinner-race::after {
+  content: "";
+  grid-area: 1/1;
+  margin: 2.2px;
+  border: inherit;
+  border-radius: 50%;
+  animation: spinner-a4dj62 2.0s infinite;
+  box-sizing: border-box;
+}
+
+.spinner-race::after {
+  margin: 8.9px;
+  animation-duration: 3.0s;
+}
+
+.spinner-race--sm {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+.spinner-race--sm::before,
+.spinner-race--sm::after {
+  margin: 1px;
+}
+
+.spinner-race--sm::after {
+  margin: 3.5px;
+}
+
+.spinner-race--md {
+  width: 36px;
+  height: 36px;
+  border-width: 3px;
+}
+
+.spinner-race--md::before,
+.spinner-race--md::after {
+  margin: 1.5px;
+}
+
+.spinner-race--md::after {
+  margin: 5.5px;
+}
+
+.spinner-race--lg {
+  width: 56px;
+  height: 56px;
+  border-width: 4.5px;
+}
+
+@keyframes spinner-a4dj62 {
+  100% { transform: rotate(1turn); }
 }

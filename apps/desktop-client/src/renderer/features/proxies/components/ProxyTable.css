@@ -1,0 +1,206 @@
+/* ProxyTable BEM styles */
+
+.proxy-table-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.proxy-table-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.proxy-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.proxy-table th,
+.proxy-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  vertical-align: middle;
+}
+
+.proxy-table th {
+  background-color: var(--color-table-header);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  user-select: none;
+}
+
+.proxy-table__th--checkbox { width: 40px; }
+.proxy-table__th--protocol { width: 80px; }
+.proxy-table__th--auth { width: 100px; }
+.proxy-table__th--location { width: 180px; }
+.proxy-table__th--status { width: 110px; }
+.proxy-table__th--actions { width: 100px; text-align: right; }
+
+.proxy-table__skeleton-box--checkbox { width: 16px; height: 16px; }
+.proxy-table__skeleton-bar--name { width: 140px; }
+.proxy-table__skeleton-bar--protocol { width: 60px; }
+.proxy-table__skeleton-bar--host { width: 160px; }
+.proxy-table__skeleton-bar--auth { width: 80px; }
+.proxy-table__skeleton-bar--location { width: 120px; }
+.proxy-table__skeleton-bar--status { width: 70px; }
+.proxy-table__skeleton-bar--actions { width: 80px; float: right; }
+
+.proxy-table__row {
+  height: var(--table-row-height);
+  background-color: var(--color-table-row);
+  transition: background-color var(--duration-fast) ease;
+}
+
+.proxy-table__row:hover {
+  background-color: var(--color-table-row-hover);
+}
+
+.proxy-table__row--selected {
+  background-color: var(--color-table-row-selected) !important;
+}
+
+/* Checkbox */
+.proxy-table__checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-xs);
+  background-color: var(--color-input-bg);
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) ease, border-color var(--duration-fast) ease;
+  flex-shrink: 0;
+}
+
+.proxy-table__checkbox--checked {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* Name */
+.proxy-table__name {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  display: block;
+  max-width: 220px;
+}
+
+/* Protocol badge */
+.proxy-table__protocol-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-xs);
+  user-select: none;
+}
+
+.proxy-table__protocol-badge--http   { background-color: rgba(54,127,245,0.12);  color: var(--color-accent); }
+.proxy-table__protocol-badge--https  { background-color: rgba(167,139,250,0.12); color: var(--color-status-locked); }
+.proxy-table__protocol-badge--socks5 { background-color: rgba(245,185,66,0.12);  color: var(--color-warning); }
+
+/* Address */
+.proxy-table__address {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Auth */
+.proxy-table__auth-info {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.proxy-table__auth-none {
+  color: var(--color-text-disabled);
+}
+
+/* Location */
+.proxy-table__location {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.proxy-table__city {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  max-width: 150px;
+}
+
+/* Actions */
+.proxy-table__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.proxy-table__action--danger:hover {
+  color: var(--color-error) !important;
+  background-color: var(--color-error-soft) !important;
+}
+
+/* Skeleton */
+.proxy-table__row--skeleton td {
+  border-bottom-color: var(--color-border-subtle);
+}
+
+.proxy-table__skeleton-box {
+  display: inline-block;
+  border-radius: var(--radius-xs);
+  background-color: var(--color-bg-surface-raised);
+}
+
+.proxy-table__skeleton-bar {
+  display: inline-block;
+  height: 12px;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(90deg, var(--color-bg-surface-raised) 25%, var(--color-bg-surface-hover) 50%, var(--color-bg-surface-raised) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* Footer / Pagination */
+.proxy-table__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 var(--space-4);
+  background-color: var(--color-bg-header);
+  border-top: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.proxy-table__count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.proxy-table__pagination {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.proxy-table__page {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}

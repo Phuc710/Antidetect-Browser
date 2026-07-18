@@ -32,7 +32,7 @@ export function Sidebar(): JSX.Element {
   const { clear } = useAuthStore();
 
   async function handleLogout(): Promise<void> {
-    await window.desktop.auth.logout().catch(() => {});
+    await window.desktop.auth.logout().catch(() => { });
     clear();
   }
 

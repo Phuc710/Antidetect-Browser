@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Mail } from 'lucide-react';
+import { authService } from '../../services/auth-service.js';
+import { Spinner } from '../../components/ui/Spinner.js';
+import { AuthIdentitySection } from './AuthIdentitySection.js';
 import './auth.css';
 
 export function ForgotPasswordPage(): JSX.Element {
@@ -13,14 +16,15 @@ export function ForgotPasswordPage(): JSX.Element {
     e.preventDefault();
     setError('');
 
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setError('Vui lòng nhập email hợp lệ.');
       return;
     }
 
     setIsLoading(true);
     try {
-      await window.desktop.auth.forgotPassword(email.trim());
+      await authService.forgotPassword(normalizedEmail);
       setSent(true);
     } catch {
       setError('Không thể gửi email lúc này. Vui lòng thử lại sau.');
@@ -30,92 +34,76 @@ export function ForgotPasswordPage(): JSX.Element {
   }
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-header">
-          <div className="auth-header__icon-wrapper">
-            <ShieldCheck className="auth-header__icon" />
-          </div>
-          <div className="auth-header__text">
-            <h1 className="auth-header__title">Quên mật khẩu</h1>
-            <p className="auth-header__subtitle">
-              {sent ? 'Kiểm tra hộp thư của bạn' : 'Nhập email để đặt lại mật khẩu'}
-            </p>
-          </div>
-        </div>
+    <div className="login-page">
+      <AuthIdentitySection />
 
-        <div className="auth-form">
+      <section className="login-page__access" aria-labelledby="forgot-title">
+        <div className="login-panel">
+          <header className="login-panel__header">
+            <p className="login-panel__overline">Khôi phục truy cập</p>
+            <h2 id="forgot-title" className="login-panel__title">Quên mật khẩu</h2>
+            <p className="login-panel__subtitle">
+              {sent ? 'Kiểm tra hộp thư của bạn' : 'Nhập email để nhận liên kết đặt lại mật khẩu.'}
+            </p>
+          </header>
+
           {sent ? (
-            <div className="auth-card--success-content">
-              <div className="auth-card__success-icon-wrapper">
-                <div className="auth-card__success-icon-circle">
-                  <Mail className="auth-card__success-icon" />
+            <div className="login-form">
+              <div className="login-form__alert login-form__alert--info">
+                <Mail aria-hidden="true" />
+                <div>
+                  <strong>Đã gửi email khôi phục</strong>
+                  <span>Chúng tôi đã gửi hướng dẫn tới <strong>{email}</strong>. Vui lòng kiểm tra hòm thư.</span>
                 </div>
               </div>
-              <p className="auth-card__success-title">
-                Email đã được gửi!
-              </p>
-              <p className="auth-card__success-message">
-                Kiểm tra hộp thư <span className="auth-card__success-email">{email}</span> và làm theo hướng dẫn để đặt lại mật khẩu.
-              </p>
-              <Link
-                to="/dang-nhap"
-                className="auth-link auth-card__back-link"
-              >
-                <ArrowLeft className="auth-card__back-icon" />
-                Về trang đăng nhập
+
+              <Link to="/dang-nhap" className="button button--primary login-form__submit login-form__submit--link">
+                <ArrowLeft size={16} /> Quay lại Đăng nhập
               </Link>
             </div>
           ) : (
-            <form onSubmit={(e) => void handleSubmit(e)} noValidate>
+            <form className="login-form" onSubmit={(e) => void handleSubmit(e)} noValidate>
               {error && (
-                <div className="auth-form__error-box">
-                  <p className="auth-form__error-text">{error}</p>
+                <div className="login-form__alert" role="alert" aria-live="polite">
+                  <AlertCircle aria-hidden="true" />
+                  <div><strong>Không thể gửi</strong><span>{error}</span></div>
                 </div>
               )}
-              <div className="form-group form-group--last">
-                <label htmlFor="forgot-email" className="form-group__label">
-                  Email
-                </label>
+
+              <div className="login-field">
+                <label className="login-field__label" htmlFor="forgot-email">Email</label>
                 <input
+                  className={`login-field__input${error ? ' login-field__input--error' : ''}`}
                   id="forgot-email"
                   type="email"
                   autoComplete="email"
+                  placeholder="name@company.com"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(''); }}
                   disabled={isLoading}
-                  placeholder="ten@email.com"
-                  className={`form-group__input ${error ? 'form-group__input--error' : ''}`}
+                  aria-invalid={Boolean(error)}
                 />
+                {error && <span className="login-field__error">{error}</span>}
               </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                id="forgot-submit-btn"
-                className="auth-form__submit-btn"
-              >
+              <button className="button button--primary login-form__submit" type="submit" disabled={isLoading}>
                 {isLoading ? (
-                  <div className="spinner" />
+                  <Spinner size="sm" />
                 ) : (
-                  <Mail className="auth-form__submit-icon" />
+                  <Mail size={16} />
                 )}
                 {isLoading ? 'Đang gửi...' : 'Gửi email đặt lại mật khẩu'}
               </button>
 
-              <div className="auth-form__footer-text">
-                <Link
-                  to="/dang-nhap"
-                  className="auth-link auth-card__back-link"
-                >
-                  <ArrowLeft className="auth-card__back-icon" />
-                  Quay lại đăng nhập
+              <p className="login-form__register">
+                <Link className="login-form__link login-form__link--icon" to="/dang-nhap">
+                  <ArrowLeft size={14} /> Quay lại Đăng nhập
                 </Link>
-              </div>
+              </p>
             </form>
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

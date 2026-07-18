@@ -1,0 +1,261 @@
+/* Settings Page Layout Stylesheets — BEM */
+
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-bg-content);
+  overflow: hidden;
+}
+
+.settings-page__header {
+  height: var(--topbar-height);
+  padding: 0 var(--space-6);
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  background-color: var(--color-bg-header);
+}
+
+.settings-page__title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.settings-page__container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Sidebar Tablist */
+.settings-page__sidebar {
+  width: var(--sidebar-width);
+  background-color: var(--color-bg-sidebar);
+  border-right: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) 0;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.settings-page__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.settings-page__tab:hover {
+  background-color: var(--color-bg-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.settings-page__tab--active {
+  background-color: var(--color-accent-soft);
+  color: var(--color-accent);
+  border-left: 3px solid var(--color-accent);
+  padding-left: calc(var(--space-6) - 3px);
+}
+
+/* Main Content panel */
+.settings-page__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-6) var(--space-8);
+}
+
+/* Panels */
+.settings-panel {
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.settings-panel__header {
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding-bottom: var(--space-4);
+}
+
+.settings-panel__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.settings-panel__desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
+}
+
+.settings-panel__group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  gap: var(--space-6);
+}
+
+.settings-panel__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.settings-panel__label {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.settings-panel__sub {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.settings-panel__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.settings-panel__alert {
+  font-size: var(--font-size-xs);
+  color: var(--color-warning);
+  background-color: var(--color-warning-soft);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  margin-top: var(--space-2);
+}
+
+.settings-panel__status-banner {
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-bg-surface-raised);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+/* Security Group Checkbox Box */
+.settings-panel__group-box {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  gap: var(--space-3);
+}
+
+.settings-panel__box-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding-bottom: var(--space-2);
+}
+
+.settings-panel__box-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  padding: var(--space-1) 0;
+}
+
+/* Toggles */
+.settings-panel__toggle {
+  width: 36px;
+  height: 20px;
+  appearance: none;
+  background-color: var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  position: relative;
+  outline: none;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) ease;
+}
+
+.settings-panel__toggle:checked {
+  background-color: var(--color-accent);
+}
+
+.settings-panel__toggle::before {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform var(--duration-fast) ease;
+}
+
+.settings-panel__toggle:checked::before {
+  transform: translateX(16px);
+}
+
+/* Request Logs Table */
+.settings-logs-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.settings-logs-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.settings-logs-table th,
+.settings-logs-table td {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-xs);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.settings-logs-table th {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-bg-surface-raised);
+}
+
+.settings-logs-table td {
+  color: var(--color-text-secondary);
+}
+
+/* Badges */
+.method-badge {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-xs);
+}
+
+.method-badge--post { background-color: rgba(49, 196, 141, 0.12); color: var(--color-success); }
+.method-badge--delete { background-color: rgba(239, 91, 103, 0.12); color: var(--color-error); }
+
+.status-badge {
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.status-badge--success { color: var(--color-success); }
+.status-badge--error { color: var(--color-error); }
