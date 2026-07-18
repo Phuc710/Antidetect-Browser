@@ -20,6 +20,13 @@ export default [
     ...apify,
     prettier,
     {
+        files: [
+            'packages/fingerprint-generator/src/types/**/*.ts',
+            'packages/fingerprint-injector/src/services/fingerprint-injector.service.ts',
+            'packages/fingerprint-injector/src/types/**/*.ts',
+            'packages/shared/src/contracts/fingerprint-envelope.ts',
+            'packages/shared/src/index.ts',
+        ],
         languageOptions: {
             parser: tsEslint.parser,
             parserOptions: {
@@ -28,6 +35,13 @@ export default [
         },
     },
     {
+        files: [
+            'packages/fingerprint-generator/src/types/**/*.ts',
+            'packages/fingerprint-injector/src/services/fingerprint-injector.service.ts',
+            'packages/fingerprint-injector/src/types/**/*.ts',
+            'packages/shared/src/contracts/fingerprint-envelope.ts',
+            'packages/shared/src/index.ts',
+        ],
         plugins: {
             '@typescript-eslint': tsEslint.plugin,
         },

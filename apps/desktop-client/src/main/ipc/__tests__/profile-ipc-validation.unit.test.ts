@@ -6,6 +6,8 @@ import {
   isSessionIdInput,
   isUpdateProfileInput,
 } from '../profile-ipc-validation.js';
+import { safeIpcFailure } from '../handlers/profile-handlers.js';
+import { FingerprintPipelineError } from '../../services/fingerprint-envelope-validator.js';
 
 describe('profile IPC validation', () => {
   it('accepts the separated browser runtime fields', () => {
@@ -34,5 +36,15 @@ describe('profile IPC validation', () => {
     expect(isListProfilesInput({ limit: 100, offset: 0, status: 'running' })).toBe(true);
     expect(isListProfilesInput({ limit: 101 })).toBe(false);
     expect(isSessionIdInput({ sessionId: '' })).toBe(false);
+  });
+
+  it('maps fingerprint failures to a safe typed IPC response', () => {
+    expect(safeIpcFailure(new FingerprintPipelineError(
+      'FINGERPRINT_INTEGRITY_INVALID',
+      'raw signature and payload',
+    ))).toEqual({
+      code: 'FINGERPRINT_INTEGRITY_INVALID',
+      message: 'Fingerprint integrity validation failed.',
+    });
   });
 });

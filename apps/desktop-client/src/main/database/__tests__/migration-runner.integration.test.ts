@@ -2,6 +2,9 @@ import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runMigrations } from '../migration-runner.js';
 import { MIGRATIONS, type Migration } from '../migrations.js';
+import { FingerprintEnvelopeCacheRepository } from '../repositories/fingerprint-envelope-cache-repository.js';
+import { ProfileRepository } from '../repositories/profile-repository.js';
+import { signedFingerprintFixture } from '../../test/signed-fingerprint-fixture.js';
 
 const openDatabases: Database.Database[] = [];
 
@@ -169,5 +172,39 @@ describe('migration v3 upgrade', () => {
     expect(() => db.transaction(() => runMigrations(db))()).toThrow(
       'Migrations cannot start inside an existing transaction.',
     );
+  });
+});
+
+describe('migration v4 fingerprint envelope cache', () => {
+  it('upgrades v3 without mutating profile metadata and cascades cache deletion', () => {
+    const db = database();
+    runMigrations(db, MIGRATIONS.filter((migration) => migration.version <= 3));
+    new ProfileRepository(db).insert({
+      id: 'profile-cache',
+      name: 'Cache owner',
+      os: 'windows',
+      engine: 'chromium',
+      distribution: 'chromium',
+      channel: 'stable',
+      browserVersion: '126.0.0',
+      architecture: 'x64',
+      storageKey: 'profile_profile-cache',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const before = db.prepare("SELECT * FROM profiles_cache WHERE id = 'profile-cache'").get();
+
+    runMigrations(db);
+
+    expect(db.prepare("SELECT * FROM profiles_cache WHERE id = 'profile-cache'").get()).toEqual(before);
+    const repository = new FingerprintEnvelopeCacheRepository(db);
+    const envelope = signedFingerprintFixture();
+    repository.store('profile-cache', envelope, '2026-01-01T00:30:00.000Z');
+    expect(repository.find('profile-cache')).toEqual(envelope);
+    expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+    expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+
+    db.prepare("DELETE FROM profiles_cache WHERE id = 'profile-cache'").run();
+    expect(repository.find('profile-cache')).toBeUndefined();
   });
 });
