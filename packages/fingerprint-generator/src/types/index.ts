@@ -41,21 +41,21 @@ export interface UserAgentData {
 
 export interface ExtraProperties {
     vendorFlavors: string[];
-    isBluetoothSupported: boolean;
-    globalPrivacyControl: null;
+    isBluetoothSupported?: boolean;
+    globalPrivacyControl: boolean | null;
     pdfViewerEnabled: boolean;
     installedApps: unknown[];
 }
 
 export interface NavigatorFingerprint {
     userAgent: string;
-    userAgentData: UserAgentData;
-    doNotTrack: string;
+    userAgentData: UserAgentData | null;
+    doNotTrack: string | null;
     appCodeName: string;
     appName: string;
     appVersion: string;
-    oscpu: string;
-    webdriver: string;
+    oscpu: string | null;
+    webdriver: boolean | string;
     language: string;
     languages: string[];
     platform: string;
@@ -64,7 +64,7 @@ export interface NavigatorFingerprint {
     product: string;
     productSub: string;
     vendor: string;
-    vendorSub: string;
+    vendorSub: string | null;
     maxTouchPoints?: number;
     extraProperties: ExtraProperties;
 }
@@ -79,10 +79,10 @@ export interface Fingerprint {
     navigator: NavigatorFingerprint;
     videoCodecs: Record<string, string>;
     audioCodecs: Record<string, string>;
-    pluginsData: Record<string, string>;
-    battery?: Record<string, string>;
-    videoCard: VideoCard;
-    multimediaDevices: string[];
+    pluginsData: Record<string, unknown>;
+    battery?: Record<string, string | number | boolean | null>;
+    videoCard: VideoCard | null;
+    multimediaDevices: Record<string, unknown>;
     fonts: string[];
     mockWebRTC: boolean;
     slim?: boolean;

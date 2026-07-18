@@ -11,8 +11,7 @@ import { getHostArchitecture } from '../../shared/profile-contracts.js';
 import { ProfileRepository } from '../database/repositories/profile-repository.js';
 import { AuditService } from './audit-service.js';
 import type { BrowserApplicationService } from './browser-application-service.js';
-import type { DatabaseService } from './database-service.js';
-import { createFingerprintProvider } from './fingerprint-provider.js';
+import type { DatabaseConnectionProvider } from './database-service.js';
 import { Logger } from './logger.js';
 import { ProfileStorageResolver } from './profile-storage-resolver.js';
 
@@ -21,11 +20,10 @@ const logger = new Logger('ProfileService');
 export class ProfileService {
   private readonly repository: ProfileRepository;
   private readonly storageResolver = new ProfileStorageResolver();
-  private readonly fingerprintProvider = createFingerprintProvider();
   private readonly audit: AuditService;
 
   constructor(
-    db: DatabaseService,
+    db: DatabaseConnectionProvider,
     private readonly browserService: BrowserApplicationService,
   ) {
     this.repository = new ProfileRepository(db.getConnection());
@@ -64,7 +62,6 @@ export class ProfileService {
     const storageKey = `profile_${id}`;
     fs.mkdirSync(this.storageResolver.resolvePath(storageKey), { recursive: true });
 
-    const envelope = await this.fingerprintProvider.getEnvelope({ os: input.os, engine: input.engine });
     this.repository.insert({
       id,
       workspaceId: input.workspaceId ?? 'default_ws',
@@ -76,9 +73,6 @@ export class ProfileService {
       browserVersion: input.browserVersion ?? 'latest',
       architecture: input.architecture ?? getHostArchitecture(),
       proxyId: input.proxyId || undefined,
-      fingerprintPayload: JSON.stringify(envelope.payload),
-      fingerprintSchemaVersion: envelope.schemaVersion,
-      fingerprintGeneratorVersion: envelope.generatorVersion,
       storageKey,
       notes: input.notes?.trim() || undefined,
       createdAt: now,

@@ -8,7 +8,7 @@ import { registerWindowHandlers } from './ipc/handlers/window-handlers.js';
 import { Logger } from './services/logger.js';
 import { loadAndValidateConfig, getConfig } from './bootstrap/config.js';
 import { registerProfileHandlers } from './ipc/handlers/profile-handlers.js';
-import { createCoreDesktopRuntime } from './composition-root.js';
+import { createCoreDesktopRuntime, resolveApplicationMode } from './composition-root.js';
 
 const logger = new Logger('Main');
 
@@ -56,7 +56,9 @@ async function bootstrap(): Promise<void> {
     browserApplicationService: browserService,
     localApiService,
     profileService,
-  } = createCoreDesktopRuntime(db);
+  } = createCoreDesktopRuntime(db, {
+    applicationMode: resolveApplicationMode(app.isPackaged, process.env['NODE_ENV']),
+  });
 
   const recoveredSessions = browserService.recoverCrashedSessions();
   if (recoveredSessions > 0) logger.warn(`Recovered ${recoveredSessions} interrupted browser session(s).`);

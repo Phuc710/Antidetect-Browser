@@ -336,6 +336,34 @@ function migrateProfilesAndSessions(db: Database.Database): void {
   if (violations.length > 0) throw new MigrationIntegrityError(violations);
 }
 
+function createFingerprintEnvelopeCache(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE fingerprint_envelopes_cache (
+      profile_id               TEXT NOT NULL PRIMARY KEY
+                               REFERENCES profiles_cache(id) ON DELETE CASCADE,
+      fingerprint_id           TEXT NOT NULL,
+      schema_version           INTEGER NOT NULL DEFAULT 2 CHECK (schema_version = 2),
+      generator_version        TEXT NOT NULL,
+      dataset_version          TEXT NOT NULL,
+      target_engine            TEXT NOT NULL CHECK (target_engine IN ('chromium', 'firefox')),
+      target_os                TEXT NOT NULL CHECK (target_os IN ('windows', 'mac', 'linux')),
+      compatible_runtime_range TEXT NOT NULL,
+      generated_at             TEXT NOT NULL,
+      expires_at               TEXT NOT NULL,
+      signature_key_id         TEXT NOT NULL,
+      cloud_revision           TEXT,
+      signed_envelope_json     TEXT NOT NULL,
+      cached_at                TEXT NOT NULL
+    );
+
+    CREATE INDEX idx_fec_expires_at ON fingerprint_envelopes_cache(expires_at);
+    CREATE INDEX idx_fec_fingerprint_id ON fingerprint_envelopes_cache(fingerprint_id);
+  `);
+
+  const violations = db.prepare('PRAGMA foreign_key_check').all() as ForeignKeyViolation[];
+  if (violations.length > 0) throw new MigrationIntegrityError(violations);
+}
+
 export const MIGRATIONS: Migration[] = [
   {
     version: 1,
@@ -390,5 +418,10 @@ export const MIGRATIONS: Migration[] = [
     name: 'profiles_cache_and_browser_lifecycle',
     requiresForeignKeysDisabled: true,
     up: migrateProfilesAndSessions,
+  },
+  {
+    version: 4,
+    name: 'fingerprint_envelopes_cache',
+    up: createFingerprintEnvelopeCache,
   },
 ];

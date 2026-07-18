@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { DatabaseService } from './database-service.js';
+import type { DatabaseConnectionProvider } from './database-service.js';
 import { Logger } from './logger.js';
 import { redactSecrets } from './redaction.js';
 
@@ -15,7 +15,7 @@ export interface AuditRecord {
 }
 
 export class AuditService {
-  constructor(private readonly db: DatabaseService) {
+  constructor(private readonly db: DatabaseConnectionProvider) {
     db.getConnection().exec(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id            TEXT PRIMARY KEY,

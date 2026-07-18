@@ -95,14 +95,14 @@ export interface ProfileRuntimeSnapshotEnvelope {
 /** Renderer-compatible snapshot item exposed by the preload adapter. */
 export type ProfileRuntimeSnapshot = ProfileRuntimeSessionSnapshot;
 
-export interface FingerprintEnvelope {
-  schemaVersion: number;
-  generatorVersion: string;
-  browserEngine: BrowserEngine;
-  minimumKernelVersion: string;
-  generatedAt: string;
-  payload: Record<string, unknown>;
-}
+export type {
+  FingerprintEnvelope,
+  FingerprintEnvelopeSignature,
+  FingerprintErrorCode,
+  FingerprintPayloadDto,
+  FingerprintTargetEngine,
+  FingerprintTargetOs,
+} from 'shared';
 
 export interface ProfileView extends BrowserRuntimeDescriptor {
   id: string;
@@ -110,7 +110,6 @@ export interface ProfileView extends BrowserRuntimeDescriptor {
   name: string;
   os: 'windows' | 'mac' | 'linux';
   proxyId?: string;
-  fingerprint?: string;
   storageKey: string;
   syncStatus: ProfileSyncStatus;
   deletionState: ProfileDeletionState;

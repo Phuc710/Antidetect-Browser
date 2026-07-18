@@ -1,8 +1,9 @@
 import http from 'http';
 import { createHash, randomBytes } from 'crypto';
-import type { DatabaseService } from './database-service.js';
+import type { DatabaseConnectionProvider } from './database-service.js';
 import type { BrowserApplicationService } from './browser-application-service.js';
 import { Logger } from './logger.js';
+import { safeBrowserFailure } from './browser-error-mapper.js';
 
 const logger = new Logger('LocalApiService');
 
@@ -30,7 +31,7 @@ export class LocalApiService {
     };
 
     constructor(
-        private readonly db: DatabaseService,
+        private readonly db: DatabaseConnectionProvider,
         private readonly browserService: BrowserApplicationService,
     ) {
         this.loadConfiguration();
@@ -405,23 +406,12 @@ export class LocalApiService {
                 }),
             );
         } catch (err: unknown) {
-            const code =
-                err instanceof Error && 'code' in err
-                    ? String((err as Error & { code?: unknown }).code)
-                    : 'LAUNCH_FAILED';
-            if (code === 'PROFILE_ALREADY_RUNNING') {
-                return this.sendError(
-                    res,
-                    409,
-                    code,
-                    'Profile is already running.',
-                );
-            }
+            const failure = safeBrowserFailure(err);
             return this.sendError(
                 res,
-                500,
-                'LAUNCH_FAILED',
-                'Browser launch failed.',
+                failure.httpStatus,
+                failure.code,
+                failure.message,
             );
         }
     }

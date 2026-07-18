@@ -7,7 +7,11 @@ import { Logger } from './logger.js';
 
 const logger = new Logger('DatabaseService');
 
-export class DatabaseService {
+export interface DatabaseConnectionProvider {
+  getConnection(): Database.Database;
+}
+
+export class DatabaseService implements DatabaseConnectionProvider {
   private db: Database.Database | null = null;
 
   initialize(): void {

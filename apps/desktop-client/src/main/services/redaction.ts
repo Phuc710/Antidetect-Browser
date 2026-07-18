@@ -1,4 +1,12 @@
 const SENSITIVE_KEY_PATTERN = /(authorization|password|passwd|credential|token|api[-_]?key|secret|cookie)/i;
+const FINGERPRINT_SECRET_KEYS = new Set([
+  'payload',
+  'signature',
+  'signedEnvelopeJson',
+  'signed_envelope_json',
+  'fingerprintPayload',
+  'fingerprint_payload',
+]);
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const URL_CREDENTIAL_PATTERN = /([a-z][a-z0-9+.-]*:\/\/)([^\s/@:]+):([^\s/@]+)@/gi;
 
@@ -30,7 +38,7 @@ export function redactSecrets(value: unknown, seen = new WeakSet<object>()): unk
 
   const clean: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    clean[key] = SENSITIVE_KEY_PATTERN.test(key)
+    clean[key] = SENSITIVE_KEY_PATTERN.test(key) || FINGERPRINT_SECRET_KEYS.has(key)
       ? REDACTED_VALUE
       : redactSecrets(item, seen);
   }
