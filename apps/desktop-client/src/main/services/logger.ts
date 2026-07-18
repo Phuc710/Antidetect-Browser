@@ -1,7 +1,7 @@
 import { app } from 'electron';
-import { join } from 'path';
 import { appendFileSync, mkdirSync } from 'fs';
-import { getConfig } from '../bootstrap/config.js';
+import { join } from 'path';
+import { redactSecrets, redactText } from './redaction.js';
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -13,39 +13,33 @@ export class Logger {
   }
 
   private write(level: LogLevel, message: string, ...args: unknown[]): void {
-    const detail = args.length > 0 ? ' ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') : '';
-    const formatted = this.format(level, message) + detail;
+    const detail = args.length > 0
+      ? ` ${args.map((argument) => {
+        const redacted = redactSecrets(argument);
+        return typeof redacted === 'object' ? JSON.stringify(redacted) : String(redacted);
+      }).join(' ')}`
+      : '';
+    const formatted = this.format(level, redactText(message)) + detail;
 
-    // In ra console (chỉ in debug ở dev)
-    let isProd = false;
-    try {
-      isProd = getConfig().nodeEnv === 'production';
-    } catch {
-      isProd = process.env['NODE_ENV'] === 'production';
-    }
+    const isProduction = process.env['NODE_ENV'] === 'production';
 
     if (level === 'debug') {
-      if (!isProd) {
-        console.debug(formatted);
-      }
+      if (!isProduction) console.debug(formatted);
     } else if (level === 'info') {
       console.info(formatted);
     } else if (level === 'warn') {
       console.warn(formatted);
-    } else if (level === 'error') {
+    } else {
       console.error(formatted);
     }
 
-    // Ghi file log ở production
-    if (isProd) {
+    if (isProduction) {
       try {
-        const userDataPath = app.getPath('userData');
-        const logDir = join(userDataPath, 'logs');
-        mkdirSync(logDir, { recursive: true });
-        const logFile = join(logDir, 'app.log');
-        appendFileSync(logFile, formatted + '\n', 'utf8');
+        const logDirectory = join(app.getPath('userData'), 'logs');
+        mkdirSync(logDirectory, { recursive: true });
+        appendFileSync(join(logDirectory, 'app.log'), `${formatted}\n`, 'utf8');
       } catch {
-        // Bỏ qua nếu có lỗi ghi file log (ví dụ lúc startup trước khi app sẵn sàng)
+        // Logging must never crash startup or shutdown.
       }
     }
   }
@@ -62,8 +56,8 @@ export class Logger {
     this.write('warn', message, ...args);
   }
 
-  error(message: string, err?: unknown): void {
-    const errMsg = err instanceof Error ? err.stack ?? err.message : String(err ?? '');
-    this.write('error', message, errMsg);
+  error(message: string, error?: unknown): void {
+    if (error === undefined) this.write('error', message);
+    else this.write('error', message, redactSecrets(error));
   }
 }
