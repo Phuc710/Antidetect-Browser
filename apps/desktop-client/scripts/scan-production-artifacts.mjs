@@ -32,7 +32,8 @@ const forbidden = new Map([
   ['legacy development test key ID', Buffer.from('test:local-development')],
 ]);
 
-const packagedResources = join(appDir, 'dist', 'win-unpacked', 'resources');
+const outputName = process.env.DESKTOP_PACKAGE_OUTPUT_DIR ?? 'dist';
+const packagedResources = join(appDir, outputName, 'win-unpacked', 'resources');
 const roots = [
   join(appDir, 'out'),
   join(packagedResources, 'app.asar'),

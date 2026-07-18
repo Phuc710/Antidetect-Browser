@@ -5,6 +5,10 @@ import { spawn, spawnSync } from 'child_process';
 const appDir = resolve(import.meta.dirname, '..');
 const workspaceDir = resolve(appDir, '..', '..');
 const stagingDir = resolve(appDir, '.packaging');
+const outputName = process.env.DESKTOP_PACKAGE_OUTPUT_DIR ?? 'dist';
+if (!/^[a-zA-Z0-9._-]+$/.test(outputName) || outputName === '.' || outputName === '..') {
+  throw new Error(`Unsafe package output directory name: ${outputName}`);
+}
 if (dirname(stagingDir) !== appDir || basename(stagingDir) !== '.packaging') {
   throw new Error(`Unsafe packaging staging path: ${stagingDir}`);
 }
@@ -93,6 +97,6 @@ const builderArgs = [
   '.packaging',
   '--config',
   '../electron-builder.yml',
-  '--config.directories.output=../dist',
+  `--config.directories.output=../${outputName}`,
 ];
 await runStage('electron-builder', builderArgs, appDir);

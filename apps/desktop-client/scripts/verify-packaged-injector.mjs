@@ -2,7 +2,8 @@ import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { spawnSync } from 'child_process';
 
-const unpackedRoot = join(import.meta.dirname, '..', 'dist', 'win-unpacked');
+const outputName = process.env.DESKTOP_PACKAGE_OUTPUT_DIR ?? 'dist';
+const unpackedRoot = join(import.meta.dirname, '..', outputName, 'win-unpacked');
 const resources = join(unpackedRoot, 'resources');
 const appAsar = join(resources, 'app.asar');
 const injectorUtils = join(
