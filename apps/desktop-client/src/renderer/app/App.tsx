@@ -5,6 +5,7 @@ import { LoginPage } from '../pages/auth/LoginPage.js';
 import { RegisterPage } from '../pages/auth/RegisterPage.js';
 import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage.js';
 import { DashboardPage } from '../pages/dashboard/DashboardPage.js';
+import { ProfilesPage } from '../pages/profiles/ProfilesPage.js';
 import { AppLayout } from '../layouts/AppLayout.js';
 import { AuthLayout } from '../layouts/AuthLayout.js';
 import { ProtectedRoute } from './ProtectedRoute.js';
@@ -43,7 +44,7 @@ export function App(): JSX.Element {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
-            {/* TODO: thêm routes cho profiles, proxies, etc. theo RFC tiếp theo */}
+            <Route path="/profiles" element={<ProfilesPage />} />
           </Route>
         </Route>
 

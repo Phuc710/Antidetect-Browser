@@ -1,0 +1,32 @@
+/* Typography Rules */
+:root {
+  --font-family-ui: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-family-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+}
+
+body {
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  font-weight: var(--font-weight-normal);
+}
+
+.font-mono {
+  font-family: var(--font-family-mono);
+}
