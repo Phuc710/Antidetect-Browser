@@ -8,7 +8,9 @@ try {
 } catch {
   try {
     dotenv.config();
-  } catch {}
+  } catch {
+    // Environment loading is optional; validation below handles missing values.
+  }
 }
 
 export interface AppConfig {

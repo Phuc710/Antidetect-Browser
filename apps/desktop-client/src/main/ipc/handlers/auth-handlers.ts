@@ -58,7 +58,7 @@ export function registerAuthHandlers(authService: AuthService): void {
     try {
       await authService.forgotPassword(email);
       return { ok: true, data: null };
-    } catch (err: unknown) {
+    } catch {
       logger.warn('ForgotPassword failed');
       return { ok: false, code: 'REQUEST_FAILED', message: 'Không thể gửi email. Vui lòng thử lại.' };
     }

@@ -10,10 +10,10 @@
     "preview": "electron-vite preview",
     "package": "electron-builder",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src",
-    "test:unit": "vitest run test/unit",
-    "test:integration": "vitest run test/integration",
-    "test": "vitest run",
+    "lint": "eslint src/main src/preload src/shared --max-warnings=0",
+    "test:unit": "node scripts/run-vitest.mjs run --config vitest.config.mts",
+    "test:integration": "node scripts/run-vitest.mjs run --config vitest.integration.config.mts",
+    "test": "pnpm run test:unit && pnpm run test:integration",
     "migrate": "ts-node migrations/run.ts"
   },
   "dependencies": {

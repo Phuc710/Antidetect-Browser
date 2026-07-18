@@ -128,7 +128,7 @@ export class AuthService {
       await this.storeSession(response);
       logger.info('Session restored successfully');
       return true;
-    } catch (err: unknown) {
+    } catch {
       logger.warn('Session restore failed, clearing credentials');
       await this.clearSession();
       return false;

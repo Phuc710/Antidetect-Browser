@@ -1,0 +1,173 @@
+import Database from 'better-sqlite3';
+import { afterEach, describe, expect, it } from 'vitest';
+import { runMigrations } from '../migration-runner.js';
+import { MIGRATIONS, type Migration } from '../migrations.js';
+
+const openDatabases: Database.Database[] = [];
+
+function database(): Database.Database {
+  const db = new Database(':memory:');
+  db.pragma('foreign_keys = ON');
+  openDatabases.push(db);
+  return db;
+}
+
+afterEach(() => {
+  for (const db of openDatabases.splice(0)) db.close();
+});
+
+describe('migration v3 upgrade', () => {
+  it('preserves populated v2 profiles, proxy references, and assignments', () => {
+    const db = database();
+    runMigrations(db, MIGRATIONS.filter((migration) => migration.version <= 2));
+
+    db.prepare(`
+      INSERT INTO proxies (
+        id, name, protocol, host, port, auth_mode, status, created_at, updated_at
+      ) VALUES ('proxy-1', 'Primary', 'http', '203.0.113.1', 8080, 'none', 'online', '2026-01-01', '2026-01-02')
+    `).run();
+    db.prepare(`
+      INSERT INTO profiles (
+        id, name, os, browser, proxy_id, fingerprint, status, user_data_dir, notes, created_at, updated_at
+      ) VALUES ('profile-1', 'Preserved', 'windows', 'chrome', 'proxy-1', '{"ua":"legacy"}', 'stopped', 'profile_profile-1', 'keep', '2026-01-01', '2026-01-02')
+    `).run();
+    db.prepare(`
+      INSERT INTO profile_proxy_assignments (profile_id, proxy_id, assigned_at)
+      VALUES ('profile-1', 'proxy-1', '2026-01-03')
+    `).run();
+
+    runMigrations(db);
+
+    const profile = db.prepare(`
+      SELECT id, name, engine, distribution, channel, browser_version, architecture, proxy_id,
+             fingerprint_payload, storage_key, notes, created_at, updated_at
+      FROM profiles_cache WHERE id = 'profile-1'
+    `).get() as Record<string, unknown>;
+    expect(profile).toMatchObject({
+      id: 'profile-1',
+      name: 'Preserved',
+      engine: 'chromium',
+      distribution: 'chrome',
+      channel: 'stable',
+      browser_version: 'latest',
+      architecture: 'x64',
+      proxy_id: 'proxy-1',
+      fingerprint_payload: '{"ua":"legacy"}',
+      storage_key: 'profile_profile-1',
+      notes: 'keep',
+      created_at: '2026-01-01',
+      updated_at: '2026-01-02',
+    });
+    expect(db.prepare('SELECT * FROM profile_proxy_assignments').get()).toMatchObject({
+      profile_id: 'profile-1',
+      proxy_id: 'proxy-1',
+      assigned_at: '2026-01-03',
+    });
+    expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+    expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('upgrades the originally shipped v2 proxy shape without losing assignments', () => {
+    const db = database();
+    db.exec(`
+      CREATE TABLE schema_migrations (
+        version INTEGER PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        applied_at TEXT NOT NULL
+      );
+      INSERT INTO schema_migrations VALUES (1, 'initial', '2026-01-01');
+      INSERT INTO schema_migrations VALUES (2, 'create_proxies', '2026-01-02');
+
+      CREATE TABLE proxies (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        host TEXT NOT NULL,
+        port INTEGER NOT NULL,
+        protocol TEXT NOT NULL CHECK (protocol IN ('http', 'https', 'socks4', 'socks5')),
+        country_code TEXT,
+        city TEXT,
+        status TEXT NOT NULL CHECK (status IN ('untested', 'active', 'error', 'pending_delete')),
+        latency_ms INTEGER,
+        last_tested_at TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE profiles (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        os TEXT NOT NULL,
+        browser TEXT NOT NULL,
+        proxy_id TEXT,
+        fingerprint TEXT,
+        user_data_dir TEXT NOT NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE profile_proxy_assignments (
+        profile_id TEXT PRIMARY KEY,
+        proxy_id TEXT REFERENCES proxies(id) ON DELETE SET NULL,
+        assigned_at TEXT NOT NULL
+      );
+
+      INSERT INTO proxies VALUES (
+        'legacy-proxy', 'Legacy', '198.51.100.20', 1080, 'socks4', 'vn', 'Hanoi',
+        'active', 42, '2026-01-03', 'preserve', '2026-01-01', '2026-01-03'
+      );
+      INSERT INTO profiles VALUES (
+        'legacy-profile', 'Legacy profile', 'windows', 'firefox', 'legacy-proxy', '{}',
+        'profile_legacy-profile', 'preserve', '2026-01-01', '2026-01-03'
+      );
+      INSERT INTO profile_proxy_assignments VALUES (
+        'legacy-profile', 'legacy-proxy', '2026-01-03'
+      );
+    `);
+
+    runMigrations(db);
+
+    expect(db.prepare("SELECT * FROM proxies WHERE id = 'legacy-proxy'").get()).toMatchObject({
+      protocol: 'socks4',
+      status: 'online',
+      auth_mode: 'none',
+      country_code: 'vn',
+      city: 'Hanoi',
+      latency_ms: 42,
+      last_checked_at: '2026-01-03',
+    });
+    expect(db.prepare("SELECT proxy_id FROM profiles_cache WHERE id = 'legacy-profile'").get()).toEqual({
+      proxy_id: 'legacy-proxy',
+    });
+    expect(db.prepare('SELECT * FROM profile_proxy_assignments').get()).toMatchObject({
+      profile_id: 'legacy-profile',
+      proxy_id: 'legacy-proxy',
+    });
+    expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+    expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('restores foreign_keys and rolls back a failed non-nested migration', () => {
+    const db = database();
+    const failing: Migration = {
+      version: 99,
+      name: 'failure_probe',
+      requiresForeignKeysDisabled: true,
+      up: (connection) => {
+        connection.exec('CREATE TABLE should_rollback (id TEXT PRIMARY KEY);');
+        throw new Error('expected failure');
+      },
+    };
+
+    expect(() => runMigrations(db, [failing])).toThrow('expected failure');
+    expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE name = 'should_rollback'").get()).toBeUndefined();
+    expect(db.prepare('SELECT * FROM schema_migrations WHERE version = 99').get()).toBeUndefined();
+  });
+
+  it('refuses to start from inside an existing transaction', () => {
+    const db = database();
+    expect(() => db.transaction(() => runMigrations(db))()).toThrow(
+      'Migrations cannot start inside an existing transaction.',
+    );
+  });
+});
