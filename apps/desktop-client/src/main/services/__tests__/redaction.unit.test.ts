@@ -20,4 +20,22 @@ describe('secret redaction', () => {
     expect(redacted).not.toContain('user:pass');
     expect(redacted).toContain(REDACTED_VALUE);
   });
+
+  it('redacts fingerprint payload and signature while preserving safe identifiers', () => {
+    expect(redactSecrets({
+      profileId: 'profile-1',
+      fingerprintId: 'fp-1',
+      generatorVersion: '2.1.83',
+      datasetVersion: 'dataset-1',
+      payload: { navigator: { userAgent: 'secret-fingerprint-data' } },
+      signature: { keyId: 'key-1', value: 'secret-signature' },
+    })).toEqual({
+      profileId: 'profile-1',
+      fingerprintId: 'fp-1',
+      generatorVersion: '2.1.83',
+      datasetVersion: 'dataset-1',
+      payload: REDACTED_VALUE,
+      signature: REDACTED_VALUE,
+    });
+  });
 });

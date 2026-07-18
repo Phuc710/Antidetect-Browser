@@ -3,6 +3,7 @@ import { PROFILE_IPC_CHANNELS } from '../../../shared/profile-ipc-channels.js';
 import type { BrowserApplicationService } from '../../services/browser-application-service.js';
 import type { ProfileService } from '../../services/profile-service.js';
 import { Logger } from '../../services/logger.js';
+import { safeBrowserFailure } from '../../services/browser-error-mapper.js';
 import {
   isCreateProfileInput,
   isLaunchProfileInput,
@@ -85,19 +86,6 @@ async function execute<T>(operation: () => T | Promise<T>, operationName: string
 }
 
 export function safeIpcFailure(error: unknown): { code: string; message: string } {
-  const code = error instanceof Error && 'code' in error
-    ? String((error as Error & { code?: unknown }).code ?? 'INTERNAL_ERROR')
-    : 'INTERNAL_ERROR';
-  const messages: Record<string, string> = {
-    NOT_FOUND: 'Profile not found.',
-    VERSION_CONFLICT: 'Profile was updated by another operation.',
-    PROFILE_ALREADY_RUNNING: 'Profile is already running.',
-    PROFILE_RUNNING: 'A running profile cannot be deleted.',
-    PROFILE_LOCK_CORRUPT: 'The local profile lock requires recovery.',
-    BROWSER_ARCHITECTURE_MISMATCH: 'The configured browser architecture is unavailable.',
-    BROWSER_ENGINE_UNAVAILABLE: 'The configured browser engine is unavailable.',
-    BROWSER_DISTRIBUTION_UNAVAILABLE: 'The configured browser distribution is unavailable.',
-    SESSION_NOT_FOUND: 'Browser session not found.',
-  };
-  return { code, message: messages[code] ?? 'The operation could not be completed.' };
+  const { code, message } = safeBrowserFailure(error);
+  return { code, message };
 }

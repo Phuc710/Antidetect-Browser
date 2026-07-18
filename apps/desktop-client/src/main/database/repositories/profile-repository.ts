@@ -201,7 +201,6 @@ export class ProfileRepository {
       browserVersion: row.browser_version ?? 'latest',
       architecture: row.architecture as BrowserArchitecture,
       ...(row.proxy_id ? { proxyId: row.proxy_id } : {}),
-      ...(row.fingerprint_payload ? { fingerprint: row.fingerprint_payload } : {}),
       storageKey: row.storage_key,
       syncStatus: (row.sync_status as ProfileSyncStatus) ?? 'synced',
       deletionState: (row.deletion_state as ProfileDeletionState) ?? 'active',

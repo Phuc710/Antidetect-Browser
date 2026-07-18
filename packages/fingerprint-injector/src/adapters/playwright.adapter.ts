@@ -22,10 +22,9 @@ export async function newInjectedContext(
         newContextOptions?: BrowserContextOptions;
     },
 ): Promise<BrowserContext> {
-    const generator = new FingerprintGenerator();
     const fingerprintWithHeaders =
         options?.fingerprint ??
-        generator.getFingerprint(options?.fingerprintOptions);
+        new FingerprintGenerator().getFingerprint(options?.fingerprintOptions);
 
     const { fingerprint, headers } = fingerprintWithHeaders;
     const context = await browser.newContext({

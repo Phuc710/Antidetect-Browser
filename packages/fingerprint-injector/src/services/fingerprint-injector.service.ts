@@ -1,16 +1,15 @@
-import { readFileSync } from 'fs';
+import { readFileSync } from 'node:fs';
 
 import {
     BrowserFingerprintWithHeaders,
     Fingerprint,
     type UserAgentData,
 } from 'fingerprint-generator';
-
 import type { BrowserContext } from 'playwright';
 import type { Page } from 'puppeteer';
 
-import { EnhancedFingerprint } from '../types';
-import { REQUEST_HEADERS_TO_FILTER } from '../constants';
+import { REQUEST_HEADERS_TO_FILTER } from '../constants/index.js';
+import type { EnhancedFingerprint } from '../types/index.js';
 
 // ============================================================================
 // Type declarations for functions defined in utils.js.
@@ -20,39 +19,43 @@ import { REQUEST_HEADERS_TO_FILTER } from '../constants';
 // ============================================================================
 
 /** Overrides getter properties on an instance's prototype using ES6 Proxy. */
-declare function overrideInstancePrototype<T>(
-    instance: T,
-    overrideObj: Partial<T>,
+declare function overrideInstancePrototype(
+    _instance: object,
+    _overrideObj: object,
 ): void;
 /** Overrides `navigator.userAgentData` and `getHighEntropyValues()`. */
-declare function overrideUserAgentData(userAgentData: UserAgentData): void;
+declare function overrideUserAgentData(_userAgentData: UserAgentData): void;
 /** Overrides `document.documentElement.clientWidth/Height`. */
 declare function overrideDocumentDimensionsProps(
-    props: Record<string, number>,
+    _props: Record<string, number>,
 ): void;
 /** Overrides `window.innerWidth/Height`, `outerWidth/Height`, etc. */
 declare function overrideWindowDimensionsProps(
-    props: Record<string, number>,
+    _props: Record<string, number>,
 ): void;
 /** Overrides `navigator.getBattery()` to return spoofed battery data. */
 declare function overrideBattery(
-    batteryInfo?: Record<string, string | number>,
+    _batteryInfo?: Record<string, string | number | boolean | null>,
 ): void;
 /** Overrides `HTMLMediaElement.canPlayType()` with spoofed codec support. */
 declare function overrideCodecs(
-    audioCodecs: Record<string, string>,
-    videoCodecs: Record<string, string>,
+    _audioCodecs: Record<string, string>,
+    _videoCodecs: Record<string, string>,
 ): void;
 /** Overrides `WebGLRenderingContext.getParameter()` for GPU vendor/renderer. */
-declare function overrideWebGl(webGlInfo: Record<string, string>): void;
+declare function overrideWebGl(
+    _webGlInfo: Record<'vendor' | 'renderer', string> | null,
+): void;
 /** Overrides the `Intl` API to use the specified language as default locale. */
-declare function overrideIntlAPI(language: string): void;
+declare function overrideIntlAPI(_language: string): void;
 /** Hides `SharedArrayBuffer` to prevent cross-origin isolation detection. */
 declare function overrideStatic(): void;
 /** Applies headless browser fixes (chrome object, permissions, plugins, iframes). */
 declare function runHeadlessFixes(): void;
 /** Blocks all WebRTC APIs with recursive Proxy to prevent IP leaks. */
 declare function blockWebRTC(): void;
+/** Serialized fingerprint value installed beside the injected function. */
+declare const fp: unknown;
 
 export class FingerprintInjector {
     // Loaded once at instantiation; contains all browser-side override functions as a string.
@@ -77,6 +80,17 @@ export class FingerprintInjector {
         return filteredHeaders;
     }
 
+    /**
+     * Returns the exact header set supported by the injection engine without
+     * reading Playwright private context state.
+     */
+    getInjectableHeaders(
+        headers: Record<string, string>,
+        browserName?: string,
+    ): Record<string, string> {
+        return this.onlyInjectableHeaders(headers, browserName);
+    }
+
     async attachFingerprintToPlaywright(
         browserContext: BrowserContext,
         browserFingerprintWithHeaders: BrowserFingerprintWithHeaders,
@@ -91,15 +105,6 @@ export class FingerprintInjector {
 
         await browserContext.setExtraHTTPHeaders({
             ...this.onlyInjectableHeaders(headers, browserName),
-            ...Object.fromEntries(
-                // @ts-expect-error Accessing private property
-                (browserContext._options?.extraHTTPHeaders ?? []).map(
-                    ({ name, value }: { name: string; value: string }) => [
-                        name,
-                        value,
-                    ],
-                ),
-            ),
         });
 
         browserContext.on('page', (page) => {
@@ -181,7 +186,6 @@ export class FingerprintInjector {
                 videoCodecs,
                 mockWebRTC,
                 slim,
-                // @ts-expect-error internal browser code
             } = fp as EnhancedFingerprint;
 
             const {
@@ -225,9 +229,7 @@ export class FingerprintInjector {
             if (mockWebRTC) blockWebRTC();
 
             if (slim) {
-                // @ts-expect-error internal browser code
-                // eslint-disable-next-line dot-notation
-                window['slim'] = true;
+                Reflect.set(window, 'slim', true);
             }
 
             overrideIntlAPI(navigatorProps.language);
@@ -238,7 +240,7 @@ export class FingerprintInjector {
             }
 
             if (window.navigator.webdriver) {
-                (navigatorProps as any).webdriver = false;
+                Reflect.set(navigatorProps, 'webdriver', false);
             }
             overrideInstancePrototype(window.navigator, navigatorProps);
 

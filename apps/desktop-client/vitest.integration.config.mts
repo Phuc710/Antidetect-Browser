@@ -5,10 +5,19 @@ export default defineConfig({
   resolve: {
     alias: {
       shared: resolve(import.meta.dirname, '../../packages/shared/src/index.ts'),
+      'fingerprint-generator': resolve(import.meta.dirname, '../../packages/fingerprint-generator/src/index.ts'),
+      'fingerprint-injector': resolve(import.meta.dirname, '../../packages/fingerprint-injector/src/index.ts'),
+      'header-generator': resolve(import.meta.dirname, '../../packages/header-generator/src/index.ts'),
+      'generative-bayesian-network': resolve(import.meta.dirname, '../../packages/generative-bayesian-network/src/index.ts'),
       electron: resolve(import.meta.dirname, 'src/main/test/electron-stub.ts'),
     },
   },
   test: {
+    server: {
+      deps: {
+        inline: ['fingerprint-generator', 'fingerprint-injector'],
+      },
+    },
     environment: 'node',
     globals: false,
     restoreMocks: true,

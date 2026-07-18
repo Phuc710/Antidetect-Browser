@@ -1,8 +1,10 @@
 import Database from 'better-sqlite3';
+import { FingerprintGenerator } from 'fingerprint-generator';
 import fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { BrowserRuntimeSessionFactory } from '../../adapters/playwright-runtime-adapter.js';
 import { runMigrations } from '../../database/migration-runner.js';
 import { BrowserSessionRepository } from '../../database/repositories/browser-session-repository.js';
 import { ProfileRepository } from '../../database/repositories/profile-repository.js';
@@ -13,6 +15,8 @@ import {
 } from '../browser-application-service.js';
 import { ProfileLockManager } from '../profile-lock-manager.js';
 import { ProfileStorageResolver } from '../profile-storage-resolver.js';
+import { FingerprintEnvelopeValidator, signFingerprintEnvelope } from '../fingerprint-envelope-validator.js';
+import { createEphemeralDevelopmentSigningMaterial } from '../fingerprint-provider.js';
 
 interface Fixture {
   db: Database.Database;
@@ -27,9 +31,9 @@ afterEach(() => {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }
 });
-
 class FakeProcessHandle implements BrowserProcessHandle {
   readonly pid = 4242;
+  readonly wsEndpoint = 'ws://127.0.0.1/fake';
   readonly automation = { protocol: 'cdp' as const, endpoint: 'http://127.0.0.1:50000' };
   private readonly listeners = new Set<(exitCode?: number) => void>();
 
@@ -43,6 +47,58 @@ class FakeProcessHandle implements BrowserProcessHandle {
   crash(exitCode: number): void {
     for (const listener of this.listeners) listener(exitCode);
   }
+}
+
+function fingerprintPipeline(now: () => Date): Pick<
+  ConstructorParameters<typeof BrowserApplicationService>[1],
+  'fingerprintProvider' | 'fingerprintValidator' | 'runtimeFactory' | 'fingerprintMapper'
+> {
+  const signingMaterial = createEphemeralDevelopmentSigningMaterial();
+  const validator = new FingerprintEnvelopeValidator(
+    { [signingMaterial.keyId]: signingMaterial.publicKey },
+    'integration_test',
+    now,
+  );
+  const generatedAt = now();
+  const envelope = signFingerprintEnvelope({
+    schemaVersion: 2,
+    fingerprintId: 'fingerprint-test',
+    generatorVersion: 'test-generator',
+    datasetVersion: 'test-dataset',
+    targetEngine: 'chromium',
+    targetOs: 'windows',
+    compatibleRuntimeRange: '>=126.0.0 <127.0.0',
+    generatedAt: generatedAt.toISOString(),
+    expiresAt: new Date(generatedAt.getTime() + 60_000).toISOString(),
+    payload: { fingerprint: {}, headers: {} },
+  }, signingMaterial.keyId, signingMaterial.privateKey);
+  const runtimeFactory: BrowserRuntimeSessionFactory = {
+    async connect(process) {
+      return {
+        pid: process.pid,
+        async applyFingerprint() {},
+        async verifyReadiness() {},
+        getAutomationEndpoint: () => ({ ...process.automation }),
+        stop: () => process.stop(),
+        onExit: (listener) => process.onExit(listener),
+      };
+    },
+  };
+  return {
+    fingerprintProvider: { async getVerifiedEnvelope() { return envelope; } },
+    fingerprintValidator: validator,
+    runtimeFactory,
+    fingerprintMapper: () => ({
+      fingerprintWithHeaders: new FingerprintGenerator().getFingerprint({
+        browsers: ['chrome'], operatingSystems: ['windows'], devices: ['desktop'], locales: ['en-US'],
+      }),
+      markerScript: 'void 0',
+      readiness: {
+        userAgent: 'test', platform: 'Win32', language: 'en-US',
+        screenWidth: 1280, screenHeight: 720, injectedMarker: 'test-generator',
+      },
+    }),
+  };
 }
 
 class FakeLauncher implements BrowserProcessLauncher {
@@ -75,8 +131,8 @@ function insertProfile(db: Database.Database, id = 'profile-1'): void {
     name: 'Runtime profile',
     os: 'windows',
     engine: 'chromium',
-    distribution: 'chrome',
-    channel: 'beta',
+    distribution: 'chromium',
+    channel: 'stable',
     browserVersion: '126.0.1',
     architecture: 'x64',
     storageKey: `profile_${id}`,
@@ -95,15 +151,17 @@ describe('BrowserApplicationService lifecycle', () => {
       processId: 1001,
       isProcessAlive: () => true,
     });
+    const clock = (() => {
+      let tick = 0;
+      return () => new Date(Date.UTC(2026, 0, 1, 0, 0, tick++));
+    })();
     const service = new BrowserApplicationService(context.databaseService, {
+      ...fingerprintPipeline(clock),
       storageResolver: context.resolver,
       lockManager,
       launcher,
       idGenerator: () => 'session-1',
-      now: (() => {
-        let tick = 0;
-        return () => new Date(Date.UTC(2026, 0, 1, 0, 0, tick++));
-      })(),
+      now: clock,
     });
     const events: number[] = [];
     service.subscribeRuntime((event) => events.push(event.sequence));
@@ -122,8 +180,8 @@ describe('BrowserApplicationService lifecycle', () => {
       id: 'session-1',
       state: 'running',
       engine: 'chromium',
-      distribution: 'chrome',
-      channel: 'beta',
+      distribution: 'chromium',
+      channel: 'stable',
       browser_version: '126.0.1',
       architecture: 'x64',
     });
@@ -138,8 +196,8 @@ describe('BrowserApplicationService lifecycle', () => {
       browserSessionId: 'session-1',
       state: 'running',
       engine: 'chromium',
-      distribution: 'chrome',
-      channel: 'beta',
+      distribution: 'chromium',
+      channel: 'stable',
       browserVersion: '126.0.1',
       architecture: 'x64',
     });
@@ -152,6 +210,32 @@ describe('BrowserApplicationService lifecycle', () => {
     expect(fs.existsSync(join(context.root, 'profile_profile-1', 'session.lock'))).toBe(false);
   });
 
+  it('persists a crash and releases the lock when the running process exits', async () => {
+    const context = fixture();
+    insertProfile(context.db);
+    const launcher = new FakeLauncher();
+    const service = new BrowserApplicationService(context.databaseService, {
+      ...fingerprintPipeline(() => new Date('2026-01-01T00:00:00.000Z')),
+      storageResolver: context.resolver,
+      lockManager: new ProfileLockManager(context.resolver, {
+        instanceId: 'instance-exit', processId: 1002, isProcessAlive: () => true,
+      }),
+      launcher,
+      idGenerator: () => 'session-exit',
+      now: () => new Date('2026-01-01T00:00:00.000Z'),
+    });
+
+    await service.launch({ profileId: 'profile-1' });
+    launcher.handles[0]?.crash(137);
+
+    expect(new BrowserSessionRepository(context.db).findById('session-exit')).toMatchObject({
+      state: 'crashed', exit_code: 137, termination_reason: 'browser_process_exit',
+    });
+    const lockPath = join(context.root, 'profile_profile-1', 'session.lock');
+    while (fs.existsSync(lockPath)) await new Promise((resolve) => setImmediate(resolve));
+    expect(service.getActiveForProfile('profile-1')).toBeUndefined();
+  });
+
   it('marks interrupted sessions crashed and removes only stale owned locks', () => {
     const context = fixture();
     insertProfile(context.db);
@@ -161,7 +245,7 @@ describe('BrowserApplicationService lifecycle', () => {
       profileId: 'profile-1',
       deviceId: 'device-a',
       engine: 'chromium',
-      distribution: 'chrome',
+      distribution: 'chromium',
       channel: 'stable',
       browserVersion: '126',
       architecture: 'x64',
@@ -188,6 +272,7 @@ describe('BrowserApplicationService lifecycle', () => {
       isProcessAlive: () => false,
     });
     const service = new BrowserApplicationService(context.databaseService, {
+      ...fingerprintPipeline(() => new Date('2026-01-02T00:00:00.000Z')),
       storageResolver: context.resolver,
       lockManager: recoveringLockManager,
       launcher: new FakeLauncher(),

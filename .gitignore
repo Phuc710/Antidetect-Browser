@@ -27,4 +27,5 @@ tsconfig.tsbuildinfo
 .env
 .env.*
 out/
-dist/
+dist/
+apps/desktop-client/.packaging/

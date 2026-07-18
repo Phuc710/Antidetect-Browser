@@ -2,8 +2,6 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from 'shared';
 import type {
   DesktopAPI, LoginInput, LoginResult, User, RegisterInput, ResetPasswordInput, IpcResult,
-  ListProxiesInput, CreateProxyInput, UpdateProxyInput, TestDraftProxyInput,
-  ProxyView, ProxyTestResult, ProxyListResult,
 } from 'shared';
 import type {
   CreateProfileInput,
@@ -29,7 +27,7 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
   return result.data;
 }
 
-type DesktopBridgeAPI = Omit<DesktopAPI, 'profile'> & { profile: ProfilesAPI };
+type DesktopBridgeAPI = DesktopAPI & { profile: ProfilesAPI };
 
 const runtimeEventBuffer: ProfileRuntimeEvent[] = [];
 const runtimeSubscribers = new Set<{ listener: (event: ProfileRuntimeEvent) => void; lastSequence: number }>();
@@ -91,29 +89,6 @@ const desktopAPI: DesktopBridgeAPI = {
     },
     async close(): Promise<void> {
       return invoke<void>(IPC_CHANNELS.WINDOW.CLOSE);
-    },
-  },
-  proxy: {
-    async list(input: ListProxiesInput): Promise<ProxyListResult> {
-      return invoke<ProxyListResult>(IPC_CHANNELS.PROXY.LIST, input);
-    },
-    async create(input: CreateProxyInput): Promise<ProxyView> {
-      return invoke<ProxyView>(IPC_CHANNELS.PROXY.CREATE, input);
-    },
-    async update(input: UpdateProxyInput): Promise<ProxyView> {
-      return invoke<ProxyView>(IPC_CHANNELS.PROXY.UPDATE, input);
-    },
-    async remove(input: { proxyId: string }): Promise<void> {
-      return invoke<void>(IPC_CHANNELS.PROXY.REMOVE, input);
-    },
-    async testDraft(input: TestDraftProxyInput): Promise<ProxyTestResult> {
-      return invoke<ProxyTestResult>(IPC_CHANNELS.PROXY.TEST_DRAFT, input);
-    },
-    async testStored(input: { proxyId: string; testId: string }): Promise<ProxyTestResult> {
-      return invoke<ProxyTestResult>(IPC_CHANNELS.PROXY.TEST_STORED, input);
-    },
-    async cancelTest(input: { testId: string }): Promise<void> {
-      return invoke<void>(IPC_CHANNELS.PROXY.CANCEL_TEST, input);
     },
   },
   localApi: {
