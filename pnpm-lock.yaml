@@ -134,12 +134,21 @@ importers:
       better-sqlite3:
         specifier: ^11.2.1
         version: 11.10.0
+      canonicalize:
+        specifier: 3.0.0
+        version: 3.0.0
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      fingerprint-generator:
+        specifier: workspace:*
+        version: link:../../packages/fingerprint-generator
+      fingerprint-injector:
+        specifier: workspace:*
+        version: link:../../packages/fingerprint-injector
       keytar:
         specifier: ^7.9.0
         version: 7.9.0
@@ -161,6 +170,9 @@ importers:
       react-router-dom:
         specifier: ^6.26.2
         version: 6.30.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      semver:
+        specifier: 7.7.4
+        version: 7.7.4
       shared:
         specifier: workspace:*
         version: link:../../packages/shared
@@ -192,6 +204,9 @@ importers:
       '@types/react-dom':
         specifier: ^18.3.0
         version: 18.3.7(@types/react@18.3.31)
+      '@types/semver':
+        specifier: 7.7.1
+        version: 7.7.1
       '@types/uuid':
         specifier: ^10.0.0
         version: 10.0.0
@@ -202,7 +217,7 @@ importers:
         specifier: ^17.4.2
         version: 17.4.2
       electron:
-        specifier: ^32.1.0
+        specifier: 32.3.3
         version: 32.3.3
       electron-builder:
         specifier: ^25.0.5
@@ -1529,6 +1544,9 @@ packages:
   '@types/responselike@1.0.3':
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
 
+  '@types/semver@7.7.1':
+    resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==}
+
   '@types/useragent@2.3.4':
     resolution: {integrity: sha512-4pGiUe4NptP06CwsW+pY/3bgGCUdMf8+DrtyJ+jNR1UTPnSEA57TsskdBtE+oq+GpPCXIR+n51RvzKIsyy4rrw==}
 
@@ -2006,6 +2024,11 @@ packages:
 
   caniuse-lite@1.0.30001787:
     resolution: {integrity: sha512-mNcrMN9KeI68u7muanUpEejSLghOKlVhRqS/Za2IeyGllJ9I9otGpR9g3nsw7n4W378TE/LyIteA0+/FOZm4Kg==}
+
+  canonicalize@3.0.0:
+    resolution: {integrity: sha512-yYLfHyDMIXRyRqsKBRLX023riFLpXY2YOfdtqKXZRZy9qsfOJ9U+4F9YZL7MEzL5+ziN2x2nlBvY/Voi3EBljA==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   chai@5.3.3:
     resolution: {integrity: sha512-4zNhdJD/iOjSH0A05ea+Ke6MU5mmpQcbQsSOkgdaUMJ9zTlDTD/GYlwohmIE2u0gaxHYiVHEn1Fw9mZ/ktJWgw==}
@@ -6122,6 +6145,8 @@ snapshots:
     dependencies:
       '@types/node': 24.12.2
 
+  '@types/semver@7.7.1': {}
+
   '@types/useragent@2.3.4': {}
 
   '@types/uuid@10.0.0': {}
@@ -6756,6 +6781,8 @@ snapshots:
   callsites@3.1.0: {}
 
   caniuse-lite@1.0.30001787: {}
+
+  canonicalize@3.0.0: {}
 
   chai@5.3.3:
     dependencies:

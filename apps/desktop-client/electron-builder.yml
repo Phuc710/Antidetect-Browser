@@ -11,20 +11,20 @@ files:
   - node_modules/**/*
   - package.json
 
+asarUnpack:
+  - node_modules/fingerprint-injector/dist/utils.js
+
 win:
   target:
     - target: nsis
       arch:
         - x64
-  icon: resources/icons/icon.ico
   signingHashAlgorithms:
     - sha256
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
-  installerIcon: resources/icons/icon.ico
-  uninstallerIcon: resources/icons/icon.ico
   createDesktopShortcut: true
   createStartMenuShortcut: true
 
@@ -34,7 +34,6 @@ mac:
       arch:
         - x64
         - arm64
-  icon: resources/icons/icon.icns
   category: public.app-category.productivity
   hardenedRuntime: true
   gatekeeperAssess: false
@@ -44,7 +43,6 @@ linux:
     - target: AppImage
       arch:
         - x64
-  icon: resources/icons/icon.png
   category: Network
 
 publish:
