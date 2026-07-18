@@ -44,7 +44,9 @@ declare function overrideCodecs(
     videoCodecs: Record<string, string>,
 ): void;
 /** Overrides `WebGLRenderingContext.getParameter()` for GPU vendor/renderer. */
-declare function overrideWebGl(webGlInfo: Record<string, string>): void;
+declare function overrideWebGl(
+    webGlInfo: Record<'vendor' | 'renderer', string>,
+): void;
 /** Overrides the `Intl` API to use the specified language as default locale. */
 declare function overrideIntlAPI(language: string): void;
 /** Hides `SharedArrayBuffer` to prevent cross-origin isolation detection. */
