@@ -1,109 +1,110 @@
-# RFC-0006: Workspace & Team Management
+# RFC-0006: Browser Lifecycle
 
-*   **Status**: Proposed
-*   **Author**: Backend Lead
-*   **Decided**: 2026-07-16
+- **Status**: Draft
+- **Owner**: Desktop Runtime
+- **Last updated**: 2026-07-18
 
----
+## Summary
 
-## 1. Background
-Enterprise customers require profile sharing capabilities. Multi-user organizations must collaborate on the same browser profiles (e.g., social media agencies sharing advertising accounts).
+`BrowserApplicationService` is the sole owner of browser-session lifecycle, persistence, runtime events, process handles and durable local locks. Electron IPC and the Local Automation API receive the exact same service instance from the desktop composition root.
 
-## 2. Problem Statement
-Sharing raw profiles causes session conflicts if two users open the same profile simultaneously. We need a workspace permissions model with real-time lock tracking.
+This RFC remains Draft until the project owner formally approves it.
 
-## 3. Goals
-- Support multi-tenant Workspaces.
-- Define roles: Owner, Admin, Manager, Operator.
-- Real-time profile state lock (prevent concurrent runs).
+## State model
 
-## 4. Non-Goals
-- P2P direct profile transfers (always transit via Cloud DB).
+`ProfileRuntimeState` is the only runtime-state union used by TypeScript contracts, SQLite repositories, services and IPC:
 
-## 5. Functional Requirements
-- Users can create Workspaces.
-- Workspace Owners can invite team members and assign roles.
-- Shared profiles must sync lock-state via WebSockets.
-
-## 6. Non-Functional Requirements
-- Lock propagation latency < 500ms.
-- Permissions verification overhead < 10ms.
-
-## 7. Architecture
-```mermaid
-graph TD
-    User[User Client] -->|Validate Lock| API[Cloud API]
-    API -->|Read/Write Lock| Redis[Redis Lock Cache]
-    API -->|Fetch Permissions| DB[(PostgreSQL)]
+```text
+validating -> acquiring_lock -> preparing -> starting -> running
+                                                     -> stopping -> stopped
+                                                     -> crashed
+any non-terminal state -> error
+recovery conflict      -> locked
 ```
 
-## 8. Sequence Diagram
-```mermaid
-sequenceDiagram
-    participant UserA as User A Client
-    participant API as Cloud API (WS)
-    participant Redis
-    participant UserB as User B Client
+Terminal states are `stopped`, `crashed`, `error` and `locked`.
 
-    UserA->>API: Request Lock profile_123
-    API->>Redis: SETNX lock:profile_123
-    Redis-->>API: 1 (Success)
-    API-->>UserA: Lock Granted
-    API-->>UserB: WS Broadcast: profile_123 Locked
-    UserB->>API: Request Run profile_123
-    API-->>UserB: Lock Denied (Active Session)
-```
+## Session identity
 
-## 9. Data Model
-```sql
-CREATE TABLE workspaces (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  owner_id TEXT NOT NULL,
-  created_at TIMESTAMP
-);
+One `browserSessionId` is generated per launch attempt. The same ID is used by:
 
-CREATE TABLE workspace_members (
-  workspace_id TEXT REFERENCES workspaces(id),
-  user_id TEXT NOT NULL,
-  role TEXT NOT NULL,          -- ADMIN, MANAGER, OPERATOR
-  PRIMARY KEY (workspace_id, user_id)
-);
-```
+- `browser_sessions.id`;
+- `profile_runtime_events.browser_session_id`;
+- the durable lock payload;
+- the in-memory process handle;
+- IPC and Local Automation API responses.
 
-## 10. API Contract
-- `POST /api/v1/workspaces/:id/members` — Invite user.
-- `GET /api/v1/workspaces/:id/profiles` — Fetch shared profiles.
+Creating a second ID in a lower layer is forbidden.
 
-## 11. State Machine
-*   `FREE` ➔ `LOCKED` ➔ `FREE`
+## Runtime events and snapshots
 
-## 12. Configuration
-*   `LOCK_TIMEOUT_SEC`: 10800 (3 hours max lock duration if heartbeat dies).
+Every transition inserts a row into `profile_runtime_events`. Its SQLite autoincrement key is the global event `sequence`.
 
-## 13. Error Handling
-- Locked profile: return `PROFILE_LOCKED` error.
-- Invite duplicate: return `ALREADY_MEMBER` status.
+Rules:
 
-## 14. Security Considerations
-- JWT containing active `workspace_id` validation on all actions.
-- Action logs stored in database for compliance.
+1. Sequence is monotonic across all profiles and sessions, not per session.
+2. State update and event insert occur in one SQLite transaction.
+3. An atomic snapshot contains `snapshotSequence`, `capturedAt` and active session snapshots.
+4. Each session snapshot contains its last applied event sequence and the complete browser runtime identity.
+5. A consumer hydrates the snapshot, then applies buffered events where `event.sequence > snapshotSequence` in ascending order.
+6. Duplicate or regressing sequence values are discarded or treated as invariant failures.
 
-## 15. Performance
-- Locks are managed in Redis with TTL to prevent DB bottleneck.
+The preload bridge begins buffering runtime events before renderer code subscribes. This closes the snapshot-to-subscription race without requiring renderer access to Electron IPC.
 
-## 16. Testing Strategy
-- Integration: concurrent lock requests check.
-- Unit: workspace role permissions audits.
+## Concurrency and durable locking
 
-## 17. Rollout Plan
-- Deploy with Milestone 3 (Cloud Sync).
+Launch protection has three explicit layers:
 
-## 18. Open Questions
-- Can a profile exist in multiple workspaces? (No, 1-to-1).
+1. An in-process mutex prevents concurrent launch preparation.
+2. SQLite active-session lookup prevents a second launch after the first session reaches persistence.
+3. `session.lock` uses exclusive file creation and contains an unguessable owner token.
 
-## 19. Future Improvements
-- Slack integration for audit notifications.
+Only the owner instance and owner token may heartbeat or remove a lock. A competing process cannot remove a lock owned by a live PID. A stale lock is removed only after its owner PID is no longer alive and its payload matches the session being recovered.
 
-## 20. Appendix
-- Workspace schema diagrams in DB spec.
+## Crash recovery
+
+At composition-root startup, before IPC or Local API launch requests are accepted:
+
+1. Query every non-terminal durable session.
+2. Reconcile its durable lock.
+3. Mark it `locked` if the recorded lock owner is still alive.
+4. Otherwise remove the matching stale lock and mark the session `crashed` with `APP_CRASH_RECOVERY`.
+5. Emit the recovery transition through the normal ordered event stream.
+
+The runtime does not kill an arbitrary PID during recovery because PID reuse cannot be proven safe with the current metadata.
+
+## Browser runtime selection
+
+The launcher receives engine, distribution, channel, browser version and architecture as separate typed fields. Architecture mismatch and unavailable distributions fail before reporting a running session.
+
+Current Playwright adapter support:
+
+- Chromium and installed Chrome/Edge channels.
+- Firefox through the Firefox launcher.
+- WebKit, Brave and custom runtime paths return explicit unavailable errors.
+
+## Cloud Lease status
+
+Cloud Lease is **not implemented**. Its capability status is `stub_not_configured`; local launches do not claim a cloud lease, and health output must not report cloud connectivity. Implementing a cloud lease requires separate explicit approval and is not part of this stabilization work.
+
+## Shutdown
+
+Requested stop transitions through `stopping` to `stopped`, awaits process shutdown, then releases only the matching durable lock. Unexpected process exit transitions to `crashed` and performs the same ownership-checked cleanup.
+
+## Tests required before approval
+
+- Runtime state persistence and global sequence ordering.
+- Snapshot watermark and buffered-event replay semantics.
+- Concurrent/double launch rejection.
+- Durable-lock ownership isolation.
+- Requested stop and unexpected process exit.
+- Desktop crash recovery.
+- IPC validation and secret-safe failures.
+- Composition-root service identity.
+
+## Current limitations
+
+- Cloud Lease is a declared stub.
+- Runtime download/checksum/repair is not implemented.
+- PID executable/start-time verification is not available, so recovery never kills an unknown process.
+- Browser fingerprint and proxy injection remain separate follow-up work and are not claimed complete here.
