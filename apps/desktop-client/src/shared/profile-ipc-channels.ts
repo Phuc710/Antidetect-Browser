@@ -1,5 +1,6 @@
 export const PROFILE_IPC_CHANNELS = {
   LIST: 'profile:list',
+  GET: 'profile:get',
   CREATE: 'profile:create',
   UPDATE: 'profile:update',
   REMOVE: 'profile:remove',

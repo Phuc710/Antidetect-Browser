@@ -49,6 +49,7 @@ describe('Profiles UI Page States & Offline Cache Unit Tests', () => {
         distribution: 'chromium',
         channel: 'stable',
         browserVersion: '124.0',
+        architecture: 'x64',
         storageKey: 'key-1',
         syncStatus: 'synced',
         deletionState: 'active',

@@ -24,7 +24,7 @@ export default defineConfig({
     include: [
       'src/main/**/*.unit.test.ts',
       'src/main/services/__tests__/*.test.ts',
-      'src/renderer/**/*.unit.test.{ts,tsx}',
+      'src/renderer/**/*.test.{ts,tsx}',
     ],
     exclude: ['src/main/**/*.integration.test.ts'],
     testTimeout: 15_000,

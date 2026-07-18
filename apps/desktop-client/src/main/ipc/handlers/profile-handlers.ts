@@ -30,6 +30,11 @@ export function registerProfileHandlers(
     return execute(() => profileService.list(input), 'profile:list');
   });
 
+  ipcMain.handle(PROFILE_IPC_CHANNELS.GET, (_event, input: unknown) => {
+    if (!isProfileIdInput(input)) return validationError('Invalid profile ID.');
+    return execute(() => profileService.get(input.profileId), 'profile:get');
+  });
+
   ipcMain.handle(PROFILE_IPC_CHANNELS.CREATE, async (_event, input: unknown) => {
     if (!isCreateProfileInput(input)) return validationError('Invalid profile configuration.');
     return execute(() => profileService.create(input), 'profile:create');

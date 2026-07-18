@@ -29,10 +29,36 @@ function isOneOf<T extends readonly string[]>(value: unknown, values: T): value 
   return typeof value === 'string' && values.includes(value);
 }
 
+function isStringArray(value: unknown, maximumItems: number, maximumLength: number): value is string[] {
+  return Array.isArray(value) && value.length <= maximumItems
+    && value.every((item) => typeof item === 'string' && item.length <= maximumLength);
+}
+
+function isStartupUrls(value: unknown): value is string[] {
+  if (!isStringArray(value, 50, 2_048)) return false;
+  return value.every((item) => {
+    try {
+      const url = new URL(item);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  });
+}
+
+function isNetworkSafetyPolicy(value: unknown): boolean {
+  return isRecord(value)
+    && hasOnlyKeys(value, ['stopIfNetworkUnavailable', 'stopIfIpChanges', 'stopIfCountryChanges'])
+    && typeof value['stopIfNetworkUnavailable'] === 'boolean'
+    && typeof value['stopIfIpChanges'] === 'boolean'
+    && typeof value['stopIfCountryChanges'] === 'boolean';
+}
+
 export function isCreateProfileInput(value: unknown): value is CreateProfileInput {
   if (!isRecord(value) || !hasOnlyKeys(value, [
     'workspaceId', 'name', 'os', 'engine', 'distribution', 'channel',
-    'browserVersion', 'architecture', 'proxyId', 'notes',
+    'browserVersion', 'architecture', 'proxyId', 'notes', 'projectId', 'tags',
+    'startupUrls', 'cookies', 'networkSafetyPolicy',
   ])) return false;
   return (
     (value['name'] === undefined || typeof value['name'] === 'string' && value['name'].length <= 120) &&
@@ -44,19 +70,30 @@ export function isCreateProfileInput(value: unknown): value is CreateProfileInpu
     (value['browserVersion'] === undefined || isBoundedString(value['browserVersion'], 1, 64)) &&
     (value['architecture'] === undefined || isOneOf(value['architecture'], BROWSER_ARCHITECTURES)) &&
     (value['proxyId'] === undefined || isBoundedString(value['proxyId'], 1, 128)) &&
-    (value['notes'] === undefined || typeof value['notes'] === 'string' && value['notes'].length <= 2_000)
+    (value['notes'] === undefined || typeof value['notes'] === 'string' && value['notes'].length <= 2_000) &&
+    (value['projectId'] === undefined || isBoundedString(value['projectId'], 1, 128)) &&
+    (value['tags'] === undefined || isStringArray(value['tags'], 50, 64)) &&
+    (value['startupUrls'] === undefined || isStartupUrls(value['startupUrls'])) &&
+    (value['cookies'] === undefined || typeof value['cookies'] === 'string' && value['cookies'].length <= 1_048_576) &&
+    (value['networkSafetyPolicy'] === undefined || isNetworkSafetyPolicy(value['networkSafetyPolicy']))
   );
 }
 
 export function isUpdateProfileInput(value: unknown): value is UpdateProfileInput {
   if (!isRecord(value) || !hasOnlyKeys(value, [
-    'profileId', 'name', 'proxyId', 'notes', 'expectedVersion',
+    'profileId', 'name', 'proxyId', 'notes', 'projectId', 'tags', 'startupUrls',
+    'cookies', 'networkSafetyPolicy', 'expectedVersion',
   ])) return false;
   return (
     isBoundedString(value['profileId'], 1, 128) &&
-    (value['name'] === undefined || isBoundedString(value['name'], 1, 120)) &&
+    (value['name'] === undefined || typeof value['name'] === 'string' && value['name'].length <= 120) &&
     (value['proxyId'] === undefined || value['proxyId'] === null || isBoundedString(value['proxyId'], 1, 128)) &&
     (value['notes'] === undefined || typeof value['notes'] === 'string' && value['notes'].length <= 2_000) &&
+    (value['projectId'] === undefined || value['projectId'] === null || isBoundedString(value['projectId'], 1, 128)) &&
+    (value['tags'] === undefined || value['tags'] === null || isStringArray(value['tags'], 50, 64)) &&
+    (value['startupUrls'] === undefined || value['startupUrls'] === null || isStartupUrls(value['startupUrls'])) &&
+    (value['cookies'] === undefined || value['cookies'] === null || typeof value['cookies'] === 'string' && value['cookies'].length <= 1_048_576) &&
+    (value['networkSafetyPolicy'] === undefined || value['networkSafetyPolicy'] === null || isNetworkSafetyPolicy(value['networkSafetyPolicy'])) &&
     (value['expectedVersion'] === undefined || Number.isSafeInteger(value['expectedVersion']) && Number(value['expectedVersion']) >= 1)
   );
 }

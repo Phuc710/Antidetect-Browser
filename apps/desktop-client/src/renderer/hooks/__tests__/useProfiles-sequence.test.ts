@@ -12,6 +12,11 @@ function processRuntimeEvent(
       sequence: event.sequence,
       state: event.state,
       occurredAt: event.occurredAt,
+      engine: 'chromium',
+      distribution: 'chromium',
+      channel: 'stable',
+      browserVersion: 'latest',
+      architecture: 'x64',
     };
   }
 
@@ -21,6 +26,7 @@ function processRuntimeEvent(
   }
 
   return {
+    ...currentSnapshot,
     profileId: event.profileId,
     browserSessionId: event.browserSessionId,
     sequence: event.sequence,
@@ -37,6 +43,11 @@ describe('Runtime Event Sequence Ordering Unit Tests', () => {
       sequence: 2,
       state: 'starting',
       occurredAt: '2026-07-18T10:00:00Z',
+      engine: 'chromium',
+      distribution: 'chromium',
+      channel: 'stable',
+      browserVersion: 'latest',
+      architecture: 'x64',
     };
 
     const nextEvent: ProfileRuntimeEvent = {
@@ -59,6 +70,11 @@ describe('Runtime Event Sequence Ordering Unit Tests', () => {
       sequence: 5,
       state: 'running',
       occurredAt: '2026-07-18T10:00:05Z',
+      engine: 'chromium',
+      distribution: 'chromium',
+      channel: 'stable',
+      browserVersion: 'latest',
+      architecture: 'x64',
     };
 
     const staleEvent: ProfileRuntimeEvent = {

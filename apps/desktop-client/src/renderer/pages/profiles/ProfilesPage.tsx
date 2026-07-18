@@ -7,6 +7,7 @@ import {
   Globe,
   Laptop,
   Plus,
+  Pencil,
   RefreshCw,
   Search,
   X,
@@ -21,6 +22,7 @@ type ProfilesLoadState = 'loading' | 'success' | 'error';
 
 interface ProfilesLocationState {
   createdProfileId?: string;
+  updatedProfileId?: string;
 }
 
 function toVisibleStatus(event: ProfileRuntimeEvent): ProfileView['status'] {
@@ -167,6 +169,12 @@ export function ProfilesPage(): JSX.Element {
             Profile đã được tạo và lưu thành công.
           </div>
         )}
+        {locationState?.updatedProfileId && loadState === 'success' && (
+          <div className="profiles-created-notice" role="status">
+            <CheckCircle2 size={16} aria-hidden="true" />
+            Profile was updated successfully.
+          </div>
+        )}
 
         {loadState === 'loading' && (
           <div className="profiles-table-container" aria-busy="true" aria-label="Đang tải profiles">
@@ -179,12 +187,13 @@ export function ProfilesPage(): JSX.Element {
                   <th>Status</th>
                   <th>Network</th>
                   <th>Updated</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {[0, 1, 2, 3].map((row) => (
                   <tr key={row} className="profile-table__row--skeleton">
-                    {[0, 1, 2, 3, 4, 5].map((cell) => (
+                    {[0, 1, 2, 3, 4, 5, 6].map((cell) => (
                       <td key={cell}><span className="profile-table__skeleton-bar" /></td>
                     ))}
                   </tr>
@@ -252,6 +261,7 @@ export function ProfilesPage(): JSX.Element {
                   <th>Status</th>
                   <th>Network</th>
                   <th>Updated</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -288,6 +298,11 @@ export function ProfilesPage(): JSX.Element {
                       </div>
                     </td>
                     <td><span className="profile-table__sync-text">{formatUpdatedAt(profile.updatedAt)}</span></td>
+                    <td>
+                      <button type="button" className="button button--ghost button--icon" onClick={() => navigate(`/profiles/${profile.id}/edit`)} aria-label={`Edit ${profile.name}`}>
+                        <Pencil size={15} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

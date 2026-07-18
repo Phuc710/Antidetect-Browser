@@ -37,7 +37,7 @@ describe('create profile model', () => {
     expect(validateCreateProfileDraft({
       ...DEFAULT_CREATE_PROFILE_DRAFT,
       name: 'x'.repeat(101),
-    })).toEqual({ valid: false, message: 'Tên profile không được vượt quá 100 ký tự.' });
+    })).toEqual({ valid: false, message: 'Profile name cannot exceed 100 characters.' });
 
     expect(validateCreateProfileDraft({
       ...DEFAULT_CREATE_PROFILE_DRAFT,

@@ -17,6 +17,26 @@ export const IPC_CHANNELS = {
     MAXIMIZE: 'window:maximize',
     CLOSE: 'window:close',
   },
+  PROXY: {
+    LIST: 'proxy:list',
+    CREATE: 'proxy:create',
+    UPDATE: 'proxy:update',
+    REMOVE: 'proxy:remove',
+    TEST_DRAFT: 'proxy:test-draft',
+    TEST_STORED: 'proxy:test-stored',
+    CANCEL_TEST: 'proxy:cancel-test',
+  },
+  PROFILE: {
+    LIST: 'profile:list',
+    GET: 'profile:get',
+    CREATE: 'profile:create',
+    UPDATE: 'profile:update',
+    REMOVE: 'profile:remove',
+    LAUNCH: 'profile:launch',
+    STOP: 'profile:stop',
+    GET_RUNTIME_SNAPSHOT: 'profile:get-runtime-snapshot',
+  },
 } as const;
+
 
 export type IpcChannel = typeof IPC_CHANNELS[keyof typeof IPC_CHANNELS][keyof typeof IPC_CHANNELS[keyof typeof IPC_CHANNELS]];

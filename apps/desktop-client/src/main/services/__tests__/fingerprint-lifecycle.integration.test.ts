@@ -20,6 +20,7 @@ import {
   BrowserApplicationService,
   type BrowserProcessHandle,
   type BrowserProcessLauncher,
+  type BrowserLaunchProxy,
 } from '../browser-application-service.js';
 import { FingerprintEnvelopeValidator, FingerprintPipelineError } from '../fingerprint-envelope-validator.js';
 import { ProfileLockManager } from '../profile-lock-manager.js';
@@ -105,8 +106,9 @@ function setup(failure: RuntimeFailure = 'none') {
     ? new Promise<void>((resolve) => { releaseStarting = resolve; })
     : Promise.resolve();
   const handle = new TrackingHandle();
+  let launchedProxy: BrowserLaunchProxy | undefined;
   const launcher: BrowserProcessLauncher = {
-    async launch() { events.push('launch'); return handle; },
+    async launch(options) { launchedProxy = options.proxy; events.push('launch'); return handle; },
   };
   let runtime: TrackingRuntime | undefined;
   const runtimeFactory: BrowserRuntimeSessionFactory = {
@@ -143,9 +145,12 @@ function setup(failure: RuntimeFailure = 'none') {
   };
   return {
     database, root, events, handle, validator, envelope, launcher, runtimeFactory, lockManager, prepared,
-    releaseStarting,
+    releaseStarting, launchedProxy: () => launchedProxy,
     runtime: () => runtime,
-    service(providerEnvelope: FingerprintEnvelope = envelope) {
+    service(
+      providerEnvelope: FingerprintEnvelope = envelope,
+      resolveProxy?: (proxyId: string) => Promise<BrowserLaunchProxy>,
+    ) {
       const service = new BrowserApplicationService({ getConnection: () => database }, {
         fingerprintProvider: {
           async getVerifiedEnvelope() { events.push('provider'); return providerEnvelope; },
@@ -158,6 +163,7 @@ function setup(failure: RuntimeFailure = 'none') {
         lockManager,
         idGenerator: () => 'session-1',
         now: () => NOW,
+        ...(resolveProxy ? { resolveProxy } : {}),
       });
       service.subscribeRuntime((event) => events.push(`state:${event.state}`));
       return service;
@@ -177,6 +183,31 @@ describe('fingerprint lifecycle orchestration', () => {
     ]);
     expect(new FingerprintEnvelopeCacheRepository(context.database).find('profile-1'))
       .toEqual(context.envelope);
+    await service.stop('session-1');
+  });
+
+  it('resolves a stored proxy in Main and passes credentials only to the process launcher', async () => {
+    const context = setup();
+    context.database.prepare(`
+      INSERT INTO proxies (id, name, protocol, host, port, auth_mode, status, created_at, updated_at)
+      VALUES ('proxy-1', 'Proxy', 'http', 'proxy.example.test', 8080, 'username_password', 'online', ?, ?)
+    `).run(NOW.toISOString(), NOW.toISOString());
+    context.database.prepare("UPDATE profiles_cache SET proxy_id = 'proxy-1' WHERE id = 'profile-1'").run();
+    const resolved: BrowserLaunchProxy = {
+      server: 'http://proxy.example.test:8080',
+      username: 'user',
+      password: 'secret',
+    };
+    const service = context.service(context.envelope, async (proxyId) => {
+      expect(proxyId).toBe('proxy-1');
+      return resolved;
+    });
+
+    await service.launch({ profileId: 'profile-1', headless: true });
+
+    expect(context.launchedProxy()).toEqual(resolved);
+    expect(JSON.stringify(service.getRuntimeSnapshot())).not.toContain('secret');
+    expect(JSON.stringify(context.events)).not.toContain('secret');
     await service.stop('session-1');
   });
 

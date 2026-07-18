@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { ProfileView, ProfileListResult, ProfileRuntimeEvent, ProfileRuntimeSnapshot } from 'shared';
+import type { ProfileView, ProfileListResult, ProfileRuntimeEvent, ProfileRuntimeSnapshot, ProfileRuntimeState } from 'shared';
 
 interface UseProfilesState {
   data: ProfileListResult | null;
@@ -7,7 +7,7 @@ interface UseProfilesState {
   error: string | null;
 }
 
-export function useProfiles(search?: string, os?: 'windows' | 'mac' | 'linux', status?: string) {
+export function useProfiles(search?: string, os?: 'windows' | 'mac' | 'linux', status?: ProfileRuntimeState) {
   const [state, setState] = useState<UseProfilesState>({
     data: null,
     loading: false,
@@ -20,14 +20,14 @@ export function useProfiles(search?: string, os?: 'windows' | 'mac' | 'linux', s
   const fetch = useCallback(async (
     searchTerm?: string,
     osFilter?: 'windows' | 'mac' | 'linux',
-    statusFilter?: string
+    statusFilter?: ProfileRuntimeState
   ) => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const result = await window.desktop.profile.list({
         search: searchTerm || undefined,
         os: osFilter || undefined,
-        status: statusFilter || undefined,
+        status: statusFilter ? (statusFilter as ProfileRuntimeState) : undefined,
         limit: 100,
         offset: 0,
       });
@@ -91,9 +91,13 @@ export function useProfiles(search?: string, os?: 'windows' | 'mac' | 'linux', s
     };
   }, []);
 
+  const refetch = useCallback(() => {
+    fetch(search, os, status);
+  }, [fetch, search, os, status]);
+
   return {
     ...state,
-    refetch: () => fetch(search, os, status),
+    refetch,
   };
 }
 

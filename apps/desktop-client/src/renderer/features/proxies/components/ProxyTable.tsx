@@ -253,6 +253,7 @@ function ProxyStatusBadge({ status, latencyMs }: { status: ProxyView['status']; 
     authentication_error: { cls: 'error',    label: 'Sai mật khẩu' },
     timeout:              { cls: 'error',    label: 'Timeout' },
     configuration_error:  { cls: 'error',    label: 'Cấu hình lỗi' },
+    pending_delete:       { cls: 'stopped',  label: 'Đang xóa...' },
   };
 
   const { cls, label } = map[status] ?? { cls: 'stopped', label: status };

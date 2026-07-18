@@ -60,6 +60,15 @@ export class ProfileService {
     };
   }
 
+  get(profileId: string): ProfileView {
+    const record = this.repository.findById(profileId);
+    if (!record) throw Object.assign(new Error('Profile not found.'), { code: 'NOT_FOUND' });
+    const view = this.repository.toView(record);
+    const session = this.browserService.getActiveForProfile(profileId);
+    if (session) view.status = session.state === 'starting' ? 'starting' : 'running';
+    return view;
+  }
+
   async create(input: CreateProfileInput): Promise<ProfileView> {
     const id = randomUUID();
     const now = new Date().toISOString();
@@ -80,6 +89,11 @@ export class ProfileService {
       proxyId: input.proxyId || undefined,
       storageKey,
       notes: input.notes?.trim() || undefined,
+      projectId: input.projectId || undefined,
+      tags: input.tags,
+      startupUrls: input.startupUrls,
+      cookies: input.cookies,
+      networkSafetyPolicy: input.networkSafetyPolicy,
       createdAt: now,
       updatedAt: now,
     });
@@ -109,9 +123,14 @@ export class ProfileService {
 
     const updatedAt = new Date().toISOString();
     this.repository.update(input.profileId, {
-      name: input.name,
+      name: input.name === undefined ? undefined : normalizeProfileName(input.name),
       proxyId: input.proxyId,
-      notes: input.notes,
+      notes: input.notes?.trim(),
+      projectId: input.projectId,
+      tags: input.tags,
+      startupUrls: input.startupUrls,
+      cookies: input.cookies,
+      networkSafetyPolicy: input.networkSafetyPolicy,
       updatedAt,
     });
     await this.audit.record({

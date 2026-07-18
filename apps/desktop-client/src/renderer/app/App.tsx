@@ -7,6 +7,8 @@ import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage.js';
 import { DashboardPage } from '../pages/dashboard/DashboardPage.js';
 import { ProfilesPage } from '../pages/profiles/ProfilesPage.js';
 import { CreateProfilePage } from '../pages/profiles/CreateProfilePage.js';
+import { ProxiesPage } from '../pages/proxies/ProxiesPage.js';
+import { SettingsPage } from '../pages/settings/SettingsPage.js';
 import { AppLayout } from '../layouts/AppLayout.js';
 import { AuthLayout } from '../layouts/AuthLayout.js';
 import { ProtectedRoute } from './ProtectedRoute.js';
@@ -47,6 +49,9 @@ export function App(): JSX.Element {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profiles" element={<ProfilesPage />} />
             <Route path="/profiles/create" element={<CreateProfilePage />} />
+            <Route path="/profiles/:profileId/edit" element={<CreateProfilePage />} />
+            <Route path="/proxies" element={<ProxiesPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
 

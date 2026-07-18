@@ -5,6 +5,8 @@ import type {
   ResetPasswordInput,
   User,
 } from './auth.js';
+import type { ProfilesAPI } from './profile.js';
+import type { ProxiesAPI } from './proxy.js';
 
 export interface AuthAPI {
   login(input: LoginInput): Promise<LoginResult>;
@@ -33,6 +35,8 @@ export interface DesktopAPI {
   auth: AuthAPI;
   window: WindowAPI;
   localApi: LocalApiAPI;
+  profile: ProfilesAPI;
+  proxy: ProxiesAPI;
 }
 
 declare global {

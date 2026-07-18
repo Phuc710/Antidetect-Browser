@@ -5,6 +5,7 @@ import {
 } from './services/browser-application-service.js';
 import { LocalApiService } from './services/local-api-service.js';
 import { ProfileService } from './services/profile-service.js';
+import { ProxyService } from './services/proxy-service.js';
 import {
   FingerprintEnvelopeValidator,
   type ApplicationMode,
@@ -21,6 +22,7 @@ export interface CoreDesktopRuntime {
   browserApplicationService: BrowserApplicationService;
   localApiService: LocalApiService;
   profileService: ProfileService;
+  proxyService: ProxyService;
 }
 
 export interface CoreDesktopRuntimeOptions {
@@ -68,14 +70,18 @@ export function createCoreDesktopRuntime(
       : {}),
     ...(developmentSigningMaterial ? { developmentSigningMaterial } : {}),
   });
+  const proxyService = new ProxyService(databaseService);
   const browserApplicationService = new BrowserApplicationService(databaseService, {
     ...options.browserOptions,
     fingerprintProvider,
     fingerprintValidator,
+    resolveProxy: options.browserOptions?.resolveProxy
+      ?? ((proxyId) => proxyService.resolveForLaunch(proxyId)),
   });
   return {
     browserApplicationService,
     localApiService: new LocalApiService(databaseService, browserApplicationService),
     profileService: new ProfileService(databaseService, browserApplicationService),
+    proxyService,
   };
 }

@@ -7,6 +7,7 @@ import type {
   BrowserArchitecture,
   ProfileDeletionState,
   ProfileSyncStatus,
+  NetworkSafetyPolicy,
 } from '../../../shared/profile-contracts.js';
 
 export interface ProfileCacheRow {
@@ -33,6 +34,11 @@ export interface ProfileCacheRow {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  project_id: string | null;
+  tags: string | null;
+  startup_urls: string | null;
+  cookies: string | null;
+  network_safety_policy: string | null;
 }
 
 export interface ListProfilesOptions {
@@ -102,6 +108,11 @@ export class ProfileRepository {
     fingerprintGeneratorVersion?: string | undefined;
     storageKey: string;
     notes?: string | undefined;
+    projectId?: string | undefined;
+    tags?: string[] | undefined;
+    startupUrls?: string[] | undefined;
+    cookies?: string | undefined;
+    networkSafetyPolicy?: NetworkSafetyPolicy | undefined;
     createdAt: string;
     updatedAt: string;
   }): void {
@@ -109,8 +120,9 @@ export class ProfileRepository {
       INSERT INTO profiles_cache (
         id, workspace_id, name, os, engine, distribution, channel, browser_version, architecture, proxy_id,
         fingerprint_payload, fingerprint_schema_version, fingerprint_generator_version,
-        storage_key, notes, sync_status, deletion_state, version, local_updated_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', 'active', 1, ?, ?, ?)
+        storage_key, notes, project_id, tags, startup_urls, cookies, network_safety_policy,
+        sync_status, deletion_state, version, local_updated_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', 'active', 1, ?, ?, ?)
     `).run(
       data.id,
       data.workspaceId ?? 'default_ws',
@@ -127,6 +139,11 @@ export class ProfileRepository {
       data.fingerprintGeneratorVersion ?? null,
       data.storageKey,
       data.notes ?? null,
+      data.projectId ?? null,
+      data.tags ? JSON.stringify(data.tags) : null,
+      data.startupUrls ? JSON.stringify(data.startupUrls) : null,
+      data.cookies ?? null,
+      data.networkSafetyPolicy ? JSON.stringify(data.networkSafetyPolicy) : null,
       data.createdAt,
       data.createdAt,
       data.updatedAt
@@ -139,6 +156,11 @@ export class ProfileRepository {
       name?: string | undefined;
       proxyId?: string | null | undefined;
       notes?: string | undefined;
+      projectId?: string | null | undefined;
+      tags?: string[] | null | undefined;
+      startupUrls?: string[] | null | undefined;
+      cookies?: string | null | undefined;
+      networkSafetyPolicy?: NetworkSafetyPolicy | null | undefined;
       updatedAt: string;
     }
   ): boolean {
@@ -158,6 +180,31 @@ export class ProfileRepository {
     if (data.notes !== undefined) {
       sets.push('notes = ?');
       params.push(data.notes);
+    }
+
+    if (data.projectId !== undefined) {
+      sets.push('project_id = ?');
+      params.push(data.projectId);
+    }
+
+    if (data.tags !== undefined) {
+      sets.push('tags = ?');
+      params.push(data.tags ? JSON.stringify(data.tags) : null);
+    }
+
+    if (data.startupUrls !== undefined) {
+      sets.push('startup_urls = ?');
+      params.push(data.startupUrls ? JSON.stringify(data.startupUrls) : null);
+    }
+
+    if (data.cookies !== undefined) {
+      sets.push('cookies = ?');
+      params.push(data.cookies);
+    }
+
+    if (data.networkSafetyPolicy !== undefined) {
+      sets.push('network_safety_policy = ?');
+      params.push(data.networkSafetyPolicy ? JSON.stringify(data.networkSafetyPolicy) : null);
     }
 
     sets.push('local_updated_at = ?');
@@ -207,8 +254,43 @@ export class ProfileRepository {
       version: row.version ?? 1,
       status: 'stopped',
       ...(row.notes ? { notes: row.notes } : {}),
+      ...(row.project_id ? { projectId: row.project_id } : {}),
+      ...(row.tags ? { tags: JSON.parse(row.tags) } : {}),
+      ...(row.startup_urls ? { startupUrls: JSON.parse(row.startup_urls) } : {}),
+      ...(row.cookies ? { cookieCount: countCookies(row.cookies) } : {}),
+      ...(row.network_safety_policy ? { networkSafetyPolicy: parseNetworkSafetyPolicy(row.network_safety_policy) } : {}),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+}
+
+function countCookies(value: string): number {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.length;
+  } catch {
+    // Netscape and Name=Value formats are line-oriented.
+  }
+  return value.split(/\r?\n/).filter((line) => line.trim() && !line.trim().startsWith('#')).length;
+}
+
+function parseNetworkSafetyPolicy(value: string): NetworkSafetyPolicy {
+  const fallback: NetworkSafetyPolicy = {
+    stopIfNetworkUnavailable: false,
+    stopIfIpChanges: false,
+    stopIfCountryChanges: false,
+  };
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object') return fallback;
+    const policy = parsed as Record<string, unknown>;
+    return {
+      stopIfNetworkUnavailable: policy['stopIfNetworkUnavailable'] === true,
+      stopIfIpChanges: policy['stopIfIpChanges'] === true,
+      stopIfCountryChanges: policy['stopIfCountryChanges'] === true,
+    };
+  } catch {
+    return fallback;
   }
 }

@@ -48,7 +48,14 @@ export interface BrowserProcessLauncher {
     automationProtocol: AutomationProtocol;
     userDataDir: string;
     headless: boolean;
+    proxy?: BrowserLaunchProxy | undefined;
   }): Promise<BrowserProcessHandle>;
+}
+
+export interface BrowserLaunchProxy {
+  server: string;
+  username?: string;
+  password?: string;
 }
 
 export interface BrowserSession extends BrowserRuntimeDescriptor {
@@ -78,6 +85,7 @@ export interface BrowserApplicationServiceOptions {
   idGenerator?: () => string;
   now?: () => Date;
   deviceId?: string;
+  resolveProxy?: (proxyId: string) => Promise<BrowserLaunchProxy>;
 }
 
 export class PlaywrightProcessLauncher implements BrowserProcessLauncher {
@@ -86,6 +94,7 @@ export class PlaywrightProcessLauncher implements BrowserProcessLauncher {
       automationProtocol: AutomationProtocol;
       userDataDir: string;
       headless: boolean;
+      proxy?: BrowserLaunchProxy | undefined;
     },
   ): Promise<BrowserProcessHandle> {
     if (options.architecture !== getHostArchitecture()) {
@@ -111,6 +120,7 @@ export class PlaywrightProcessLauncher implements BrowserProcessLauncher {
 
     const server = await playwright.chromium.launchServer({
       headless: options.headless,
+      ...(options.proxy ? { proxy: options.proxy } : {}),
       args: [
         `--remote-debugging-port=${port}`,
         '--remote-debugging-address=127.0.0.1',
@@ -185,6 +195,7 @@ export class BrowserApplicationService {
   private readonly idGenerator: () => string;
   private readonly now: () => Date;
   private readonly deviceId: string;
+  private readonly resolveProxy: ((proxyId: string) => Promise<BrowserLaunchProxy>) | undefined;
   private readonly sessions = new Map<string, ActiveSession>();
   private readonly listeners = new Set<(event: ProfileRuntimeEvent) => void>();
   private readonly eventBuffer: ProfileRuntimeEvent[] = [];
@@ -207,6 +218,7 @@ export class BrowserApplicationService {
     this.idGenerator = options.idGenerator ?? randomUUID;
     this.now = options.now ?? (() => new Date());
     this.deviceId = options.deviceId ?? 'local_device';
+    this.resolveProxy = options.resolveProxy;
   }
 
   recoverCrashedSessions(): number {
@@ -293,11 +305,15 @@ export class BrowserApplicationService {
       this.transition(sessionId, 'preparing');
 
       const startedAt = this.now().toISOString();
+      const proxy = profile.proxy_id
+        ? await this.resolveConfiguredProxy(profile.proxy_id)
+        : undefined;
       processHandle = await this.launcher.launch({
         ...descriptor,
         automationProtocol,
         userDataDir: this.storageResolver.resolvePath(profile.storage_key),
         headless: options.headless ?? false,
+        ...(proxy ? { proxy } : {}),
       });
       pendingSession.processHandle = processHandle;
       this.assertLaunchNotCancelled(pendingSession);
@@ -387,6 +403,15 @@ export class BrowserApplicationService {
       this.pendingSessions.delete(sessionId);
       this.lockManager.releaseInProcessMutex(options.profileId);
     }
+  }
+
+  private async resolveConfiguredProxy(proxyId: string): Promise<BrowserLaunchProxy> {
+    if (!this.resolveProxy) {
+      throw Object.assign(new Error('Proxy runtime resolver is unavailable.'), {
+        code: 'PROXY_RUNTIME_UNAVAILABLE',
+      });
+    }
+    return this.resolveProxy(proxyId);
   }
 
   async stop(sessionId: string): Promise<void> {

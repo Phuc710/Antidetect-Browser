@@ -364,6 +364,23 @@ function createFingerprintEnvelopeCache(db: Database.Database): void {
   if (violations.length > 0) throw new MigrationIntegrityError(violations);
 }
 
+function addProfileExtendedMetadata(db: Database.Database): void {
+  const existing = new Set(
+    (db.prepare('PRAGMA table_info(profiles_cache)').all() as Array<{ name: string }>).map((column) => column.name),
+  );
+  const columns = [
+    ['project_id', 'TEXT'],
+    ['tags', 'TEXT'],
+    ['startup_urls', 'TEXT'],
+    ['cookies', 'TEXT'],
+    ['network_safety_policy', 'TEXT'],
+  ] as const;
+
+  for (const [name, type] of columns) {
+    if (!existing.has(name)) db.exec(`ALTER TABLE profiles_cache ADD COLUMN ${name} ${type}`);
+  }
+}
+
 export const MIGRATIONS: Migration[] = [
   {
     version: 1,
@@ -423,5 +440,10 @@ export const MIGRATIONS: Migration[] = [
     version: 4,
     name: 'fingerprint_envelopes_cache',
     up: createFingerprintEnvelopeCache,
+  },
+  {
+    version: 5,
+    name: 'profiles_extended_metadata',
+    up: addProfileExtendedMetadata,
   },
 ];

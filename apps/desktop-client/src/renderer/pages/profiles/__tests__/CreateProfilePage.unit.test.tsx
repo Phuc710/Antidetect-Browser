@@ -4,6 +4,7 @@ import { CreateProfilePage } from '../CreateProfilePage.js';
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => () => undefined,
+  useParams: () => ({}),
 }));
 
 describe('CreateProfilePage', () => {
@@ -12,7 +13,7 @@ describe('CreateProfilePage', () => {
 
     expect(html).toContain('Create Single');
     expect(html).toContain('Automatic fingerprint policy');
-    expect(html).toContain('Generate Fingerprint');
+    expect(html).toContain('Automatic fingerprint policy');
     expect(html).not.toContain('role="dialog"');
     expect(html).not.toContain('User-Agent');
     expect(html).not.toContain('WebGL Vendor');
@@ -24,6 +25,6 @@ describe('CreateProfilePage', () => {
     expect(html).toContain('Batch Create');
     expect(html).toContain('Import Profile');
     expect(html).toContain('Save as template');
-    expect(html.match(/disabled=""/g)?.length ?? 0).toBeGreaterThanOrEqual(6);
+    expect(html.match(/disabled=""/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 });

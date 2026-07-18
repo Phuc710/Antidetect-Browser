@@ -21,7 +21,8 @@
       "@preload/*": ["src/preload/*"],
       "@renderer/*": ["src/renderer/*"],
       "@shared/*": ["../../packages/shared/src/*"],
-      "@/*": ["src/renderer/*"]
+      "@/*": ["src/renderer/*"],
+      "@vitejs/plugin-react": ["../../node_modules/@vitejs/plugin-react/dist/index.d.ts"]
     }
   },
   "include": ["src/**/*", "electron.vite.config.ts"],

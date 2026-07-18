@@ -149,6 +149,9 @@ importers:
       fingerprint-injector:
         specifier: workspace:*
         version: link:../../packages/fingerprint-injector
+      https-proxy-agent:
+        specifier: 7.0.6
+        version: 7.0.6
       keytar:
         specifier: ^7.9.0
         version: 7.9.0
@@ -176,6 +179,9 @@ importers:
       shared:
         specifier: workspace:*
         version: link:../../packages/shared
+      socks-proxy-agent:
+        specifier: 8.0.5
+        version: 8.0.5
       tailwind-merge:
         specifier: ^2.5.2
         version: 2.6.1

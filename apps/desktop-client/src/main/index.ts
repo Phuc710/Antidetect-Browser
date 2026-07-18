@@ -8,6 +8,7 @@ import { registerWindowHandlers } from './ipc/handlers/window-handlers.js';
 import { Logger } from './services/logger.js';
 import { loadAndValidateConfig, getConfig } from './bootstrap/config.js';
 import { registerProfileHandlers } from './ipc/handlers/profile-handlers.js';
+import { registerProxyHandlers } from './ipc/handlers/proxy-handlers.js';
 import { createCoreDesktopRuntime, resolveApplicationMode } from './composition-root.js';
 
 const logger = new Logger('Main');
@@ -56,6 +57,7 @@ async function bootstrap(): Promise<void> {
     browserApplicationService: browserService,
     localApiService,
     profileService,
+    proxyService,
   } = createCoreDesktopRuntime(db, {
     applicationMode: resolveApplicationMode(app.isPackaged, process.env['NODE_ENV']),
   });
@@ -64,6 +66,7 @@ async function bootstrap(): Promise<void> {
   if (recoveredSessions > 0) logger.warn(`Recovered ${recoveredSessions} interrupted browser session(s).`);
 
   localApiService.start();
+  await proxyService.initialize();
 
   // Đăng ký dọn dẹp khi tắt app
   app.on('will-quit', () => {
@@ -75,6 +78,7 @@ async function bootstrap(): Promise<void> {
   registerAuthHandlers(authService);
   registerLocalApiHandlers(db, localApiService);
   registerProfileHandlers(profileService, browserService);
+  registerProxyHandlers(proxyService);
 
   // Tạo main window
   const windowService = new WindowService();

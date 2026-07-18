@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { ProxyView, ProxyListResult } from 'shared';
+import type { ProxyView, ProxyListResult, ProxyTestResult } from 'shared';
 import { proxyIpc } from '../api/proxy-ipc.js';
 
 interface UseProxiesState {
@@ -91,7 +91,7 @@ export function useRemoveProxy(onSuccess: (proxyId: string) => void) {
 
 export function useTestProxy() {
   const [testingIds, setTestingIds] = useState<Set<string>>(new Set());
-  const [results, setResults] = useState<Map<string, import('shared').ProxyTestResult>>(new Map());
+  const [results, setResults] = useState<Map<string, ProxyTestResult>>(new Map());
 
   const testStored = useCallback(async (proxyId: string) => {
     const testId = `${proxyId}-${Date.now()}`;
