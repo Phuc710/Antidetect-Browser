@@ -10,7 +10,8 @@
 | **Author** | Core Agent (Desktop Main Process) |
 | **Related** | RFC-0005 (Core Runtime), RFC-0006 (Profile Model), RFC-0025 (Proxy Management), RFC-0027A (Cloud Fingerprint Issuance API — separate backend RFC) |
 | **Approved by** | Project Owner — 2026-07-18 |
-| **Production Enablement** | **Blocked** until RFC-0027A (Cloud Fingerprint Issuance API) is deployed and integrated. Approval of this RFC does not indicate production-readiness. |
+| **Implementation Status** | Approved for DESKTOP-CORE-006 development |
+| **Production Enablement** | **Blocked** pending RFC-0027A (Cloud Fingerprint Issuance API). Approval does not indicate production-readiness. |
 
 ---
 
@@ -21,7 +22,8 @@
 | 000 | 2026-07-18 | Initial draft |
 | 001 | 2026-07-18 | CHANGES_REQUIRED: HMAC → Ed25519, fail-closed rollback, compatibility matrix, runtime abstraction Option B, readiness probe, separate cache table, cloud sequencing, test strategy |
 | 002 | 2026-07-18 | Owner design decisions applied: BrowserRuntimeSession interface, Ed25519 confirmed, expiry policy (24h + 5min skew), offline launch rule, cache table confirmed, Phase 1 scope (chromium/chrome/edge), readiness sequence, ASAR handling, at-rest protection policy, open questions resolved/narrowed |
-| 003 | 2026-07-18 | RFC-0027-FINALIZE: All remaining open questions resolved per owner. Canonical serialization replaced with deterministic JCS (RFC 8785). ASAR decision: Phase 1 uses explicit `asarUnpack`. Compatibility matrix acceptance criteria finalized. RFC status set to **Approved**. Production enablement dependency on RFC-0027A recorded. |
+| 003 | 2026-07-18 | RFC-0027-FINALIZE: All remaining open questions resolved per owner. Canonical serialization replaced with deterministic JCS (RFC 8785). ASAR decision: Phase 1 uses explicit `asarUnpack`. Compatibility matrix acceptance criteria finalized. RFC status set to Approved. Production enablement dependency on RFC-0027A recorded. |
+| 003-E | 2026-07-18 | RFC-0027-FINAL-ERRATA: Errata 1 — JCS test-vector requirement added. Errata 2 — Removed incorrect generator-type import claim; added `FingerprintPayloadDto` DTO boundary. Errata 3 — Added `generatedAt` future-check, lifetime bounds, and `FINGERPRINT_TIMESTAMP_INVALID` error code. |
 
 ---
 
@@ -176,10 +178,7 @@ export interface FingerprintEnvelope {
   readonly compatibleRuntimeRange: string;     // semver range (e.g., ">=120.0.0.0 <140.0.0.0")
   readonly generatedAt: string;                // ISO-8601 UTC
   readonly expiresAt: string;                  // ISO-8601 UTC; server-supplied; max 24h from generatedAt
-  readonly payload: {
-    readonly fingerprint: Fingerprint;         // packages/fingerprint-generator type
-    readonly headers: Record<string, string>;  // coherent generated HTTP headers
-  };
+  readonly payload: FingerprintPayloadDto;     // transport DTO — see §7.1a below
   readonly coherence?: {                       // Phase 1b; reserved; may be absent in Phase 1
     readonly locale: string;
     readonly timezone: string;
@@ -194,7 +193,30 @@ export interface FingerprintEnvelope {
 }
 ```
 
-**Key invariant:** `Fingerprint` type is imported from `packages/fingerprint-generator`. This is the correct dependency direction: the desktop shared contract depends on the generator type, not the other way around. No implementation package is reverse-imported.
+### 7.1a `FingerprintPayloadDto` — Transport / Domain DTO (Errata 2)
+
+The shared contract (`packages/shared`) **must not** import implementation types from `packages/fingerprint-generator`, `packages/fingerprint-injector`, or Playwright. Those are implementation packages; the shared contract is a transport boundary.
+
+```typescript
+/**
+ * Transport DTO for fingerprint payload.
+ * Data-only structural type — no imports from implementation packages.
+ * Defined in packages/shared; safe to use in any process boundary.
+ */
+export interface FingerprintPayloadDto {
+  readonly fingerprint: Record<string, unknown>;  // opaque validated data; structure enforced at adapter layer
+  readonly headers: Record<string, string>;        // coherent generated HTTP headers
+}
+```
+
+**Dependency boundary rules (Errata 2):**
+- `packages/shared` defines `FingerprintPayloadDto` using data-only structural types. No implementation package is imported.
+- `packages/fingerprint-generator`, `packages/fingerprint-injector`, and Playwright types do **not** appear anywhere in `packages/shared`.
+- The Electron Main process adapter (`PlaywrightRuntimeAdapter` / injection wiring) is responsible for validating and mapping:
+  `FingerprintPayloadDto` → `BrowserFingerprintWithHeaders` (injector-compatible type from `fingerprint-generator`).
+- This mapping must **fail closed**: any field that fails structural validation causes `FINGERPRINT_SCHEMA_UNSUPPORTED`; no partial or best-effort injection.
+- The adapter may import `packages/fingerprint-generator` and `packages/fingerprint-injector` — those imports are confined to the Main process adapter layer, never to shared contracts.
+- **Do not duplicate generator algorithm. Do not copy or move package code.** The packages are reused in place via the adapter.
 
 ### 7.2 Canonical Serialization for Signature (owner decision #6)
 
@@ -235,11 +257,12 @@ function buildSignInput(envelope: FingerprintEnvelope): Uint8Array {
 
 **Rules:**
 - Implementation must use a well-tested RFC 8785-compliant library (e.g., the `canonicalize` npm package or equivalent).
-- Cloud signing side and Desktop verification side must use the same RFC 8785 algorithm.
+- Cloud signing side and Desktop verification side must use the **same RFC 8785 algorithm and the same canonicalization test vectors**. Before shipping, both sides must independently canonicalize an agreed set of test envelopes and confirm byte-identical output.
 - `signature` field is excluded before canonicalization — it must not appear in the sign input.
 - `coherence` and `cloudRevision` are omitted entirely (not set to `null`) when absent.
 - Encoding: UTF-8 bytes.
 - Do NOT implement a custom sort-based serializer inline; use an audited RFC 8785 library.
+- Reject any data that cannot be represented faithfully under RFC 8785 canonicalization rules (e.g., non-finite floats, duplicate object keys). Such inputs are treated as `FINGERPRINT_SCHEMA_UNSUPPORTED`.
 
 ### 7.3 Key Management (owner decision #2)
 
@@ -264,7 +287,9 @@ function buildSignInput(envelope: FingerprintEnvelope): Uint8Array {
 
 ---
 
-## 8. Expiry Policy (owner decision #3)
+## 8. Expiry and Timestamp Policy (owner decisions #3, Errata 3)
+
+### 8.1 Expiry Rules
 
 | Rule | Value |
 |------|-------|
@@ -275,7 +300,22 @@ function buildSignInput(envelope: FingerprintEnvelope): Uint8Array {
 | Missing `expiresAt` | Always rejected (`FINGERPRINT_EXPIRED`) |
 | Cache eviction | Envelopes with `expires_at + 5min < now()` are treated as expired; background cleanup removes rows where `expires_at < now() - 1h` |
 
-**Clock skew tolerance** applies only to the expiry check, not to `generatedAt`. An envelope with `generatedAt` in the future is suspicious but not independently rejected (only `expiresAt` drives rejection).
+### 8.2 Timestamp Validation Rules (Errata 3)
+
+All timestamp checks run in the validation pipeline (step 3 of §11.1) and fail closed with `FINGERPRINT_TIMESTAMP_INVALID`.
+
+| Condition | Error | Rationale |
+|-----------|-------|----------|
+| `generatedAt > now + 5 minutes` | `FINGERPRINT_TIMESTAMP_INVALID` | Envelope is from the future beyond acceptable clock skew — possible replay or clock drift attack |
+| `expiresAt ≤ generatedAt` | `FINGERPRINT_TIMESTAMP_INVALID` | Non-positive lifetime — malformed or tampered envelope |
+| `expiresAt − generatedAt > 24 hours` | `FINGERPRINT_TIMESTAMP_INVALID` | Lifetime exceeds owner policy maximum |
+| Either timestamp field missing or unparseable | `FINGERPRINT_TIMESTAMP_INVALID` | Missing or invalid ISO-8601 UTC string |
+
+**Policy notes:**
+- Clock skew tolerance of 5 minutes applies to the expiry check (§8.1) and to the `generatedAt` future check above. No other leniency.
+- `generatedAt` in the past (without the above violations) is valid.
+- Invalid timestamps fail closed — no warning-and-proceed path.
+- Both `generatedAt` and `expiresAt` must be valid ISO-8601 UTC strings parseable to a UTC instant.
 
 ---
 
@@ -375,17 +415,19 @@ function createFingerprintProvider(
 ### 11.1 Validation Pipeline (ordered; all run before process start)
 
 ```
-1. validateSchemaVersion(envelope)         → FINGERPRINT_SCHEMA_UNSUPPORTED
-2. validateSignature(envelope, keyBundle)  → FINGERPRINT_INTEGRITY_INVALID
+1. validateSchemaVersion(envelope)              → FINGERPRINT_SCHEMA_UNSUPPORTED
+2. validateSignature(envelope, keyBundle)       → FINGERPRINT_INTEGRITY_INVALID
    (signature step 2 — prevents tampering with subsequent fields)
-3. validateExpiry(envelope, now)           → FINGERPRINT_EXPIRED
-4. validateEngineMatch(envelope, profile)  → FINGERPRINT_ENGINE_MISMATCH
-5. validateOsMatch(envelope, profile)      → FINGERPRINT_OS_MISMATCH
-6. validateRuntimeRange(envelope, version) → FINGERPRINT_RUNTIME_INCOMPATIBLE (if version known)
-7. validatePayloadShape(envelope.payload)  → FINGERPRINT_SCHEMA_UNSUPPORTED
+3. validateTimestamps(envelope, now)            → FINGERPRINT_TIMESTAMP_INVALID
+   (generatedAt future-check, expiresAt > generatedAt, lifetime ≤ 24h)
+4. validateExpiry(envelope, now)                → FINGERPRINT_EXPIRED
+5. validateEngineMatch(envelope, profile)       → FINGERPRINT_ENGINE_MISMATCH
+6. validateOsMatch(envelope, profile)           → FINGERPRINT_OS_MISMATCH
+7. validateRuntimeRange(envelope, version)      → FINGERPRINT_RUNTIME_INCOMPATIBLE (if version known)
+8. validatePayloadShape(envelope.payload)       → FINGERPRINT_SCHEMA_UNSUPPORTED
 ```
 
-Steps 1–7 all run before `acquireInProcessMutex()`. Validation failure does not acquire any lock and does not create a session record.
+Steps 1–8 all run before `acquireInProcessMutex()`. Validation failure does not acquire any lock and does not create a session record.
 
 ### 11.2 Error Codes
 
@@ -393,9 +435,10 @@ Steps 1–7 all run before `acquireInProcessMutex()`. Validation failure does no
 |------|---------|
 | `FINGERPRINT_SERVICE_UNAVAILABLE` | Cloud provider not configured, unreachable, or returned 5xx |
 | `FINGERPRINT_MISSING` | Provider returned null; no valid cached envelope |
-| `FINGERPRINT_SCHEMA_UNSUPPORTED` | `schemaVersion` ≠ 2, payload shape invalid |
+| `FINGERPRINT_SCHEMA_UNSUPPORTED` | `schemaVersion` ≠ 2, payload shape invalid, non-representable data under JCS |
 | `FINGERPRINT_INTEGRITY_INVALID` | Ed25519 failure, unknown keyId, test key in production, missing signature |
-| `FINGERPRINT_EXPIRED` | `expiresAt + 5min ≤ now()`, or field absent |
+| `FINGERPRINT_TIMESTAMP_INVALID` | `generatedAt` > now + 5min; `expiresAt ≤ generatedAt`; lifetime > 24h; missing or unparseable timestamp field |
+| `FINGERPRINT_EXPIRED` | `expiresAt + 5min ≤ now()` |
 | `FINGERPRINT_ENGINE_MISMATCH` | `targetEngine` ≠ profile engine |
 | `FINGERPRINT_OS_MISMATCH` | `targetOs` ≠ profile OS |
 | `FINGERPRINT_RUNTIME_INCOMPATIBLE` | Browser version outside `compatibleRuntimeRange` |
@@ -915,10 +958,10 @@ All open questions have been resolved by owner decision as part of the Design Re
 | Field | Value |
 |-------|-------|
 | **RFC Status** | **Approved** |
-| **Approved by** | Project Owner |
-| **Date** | 2026-07-18 |
-| **Revision approved** | 003 |
-| **Production enablement** | **Blocked** pending RFC-0027A (Cloud Fingerprint Issuance API). Approval of this RFC authorizes implementation (DESKTOP-CORE-006) to begin. It does not constitute production-readiness. |
+| **Approved by** | Project Owner — 2026-07-18 |
+| **Revision approved** | 003-E (RFC-0027-FINAL-ERRATA applied) |
+| **Implementation Status** | Approved for DESKTOP-CORE-006 development |
+| **Production Enablement** | **Blocked** pending RFC-0027A (Cloud Fingerprint Issuance API). Approval of this RFC does not constitute production-readiness. |
 | **Next task** | `DESKTOP-CORE-006 — Implement Browser Fingerprint Injection Adapter` |
 
 > [!IMPORTANT]
