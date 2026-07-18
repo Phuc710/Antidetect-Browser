@@ -17,6 +17,10 @@ import { ProfileStorageResolver } from './profile-storage-resolver.js';
 
 const logger = new Logger('ProfileService');
 
+export function normalizeProfileName(name: string | undefined): string {
+  return name?.trim() || 'Unnamed Profile';
+}
+
 export class ProfileService {
   private readonly repository: ProfileRepository;
   private readonly storageResolver = new ProfileStorageResolver();
@@ -60,12 +64,13 @@ export class ProfileService {
     const id = randomUUID();
     const now = new Date().toISOString();
     const storageKey = `profile_${id}`;
+    const name = normalizeProfileName(input.name);
     fs.mkdirSync(this.storageResolver.resolvePath(storageKey), { recursive: true });
 
     this.repository.insert({
       id,
       workspaceId: input.workspaceId ?? 'default_ws',
-      name: input.name.trim(),
+      name,
       os: input.os,
       engine: input.engine,
       distribution: input.distribution,
@@ -84,7 +89,7 @@ export class ProfileService {
       resourceType: 'profile',
       resourceId: id,
       metadata: {
-        name: input.name,
+        name,
         engine: input.engine,
         distribution: input.distribution,
         architecture: input.architecture ?? getHostArchitecture(),

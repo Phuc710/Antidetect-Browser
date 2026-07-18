@@ -122,7 +122,7 @@ export interface ProfileView extends BrowserRuntimeDescriptor {
 
 export interface CreateProfileInput {
   workspaceId?: string;
-  name: string;
+  name?: string;
   os: 'windows' | 'mac' | 'linux';
   engine: BrowserEngine;
   distribution: BrowserDistribution;

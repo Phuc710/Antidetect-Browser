@@ -35,7 +35,7 @@ export function isCreateProfileInput(value: unknown): value is CreateProfileInpu
     'browserVersion', 'architecture', 'proxyId', 'notes',
   ])) return false;
   return (
-    isBoundedString(value['name'], 1, 120) &&
+    (value['name'] === undefined || typeof value['name'] === 'string' && value['name'].length <= 120) &&
     isOneOf(value['os'], ['windows', 'mac', 'linux'] as const) &&
     isOneOf(value['engine'], BROWSER_ENGINES) &&
     isOneOf(value['distribution'], BROWSER_DISTRIBUTIONS) &&

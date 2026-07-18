@@ -22,6 +22,19 @@ describe('profile IPC validation', () => {
     })).toBe(true);
   });
 
+  it('allows an omitted or blank create name for domain normalization', () => {
+    const runtime = {
+      os: 'windows',
+      engine: 'chromium',
+      distribution: 'chromium',
+      channel: 'stable',
+    } as const;
+
+    expect(isCreateProfileInput(runtime)).toBe(true);
+    expect(isCreateProfileInput({ ...runtime, name: '   ' })).toBe(true);
+    expect(isCreateProfileInput({ ...runtime, name: 'x'.repeat(121) })).toBe(false);
+  });
+
   it('rejects the obsolete browser field and unknown properties', () => {
     expect(isCreateProfileInput({
       name: 'Profile',

@@ -15,7 +15,7 @@
     "smoke:packaged-injector": "node scripts/verify-packaged-injector.mjs",
     "scan:production-artifacts": "node scripts/scan-production-artifacts.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/main src/preload src/shared --max-warnings=0",
+    "lint": "eslint src/main src/preload src/shared src/renderer --max-warnings=0",
     "test:unit": "node scripts/run-vitest.mjs run --config vitest.config.mts",
     "test:integration": "node scripts/run-vitest.mjs run --config vitest.integration.config.mts",
     "test": "pnpm run test:unit && pnpm run test:integration",
