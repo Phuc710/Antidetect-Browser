@@ -8,18 +8,13 @@ import type {
   UserAgentData,
   VideoCard,
 } from 'fingerprint-generator';
-import { FingerprintInjector } from 'fingerprint-injector';
 import type { FingerprintEnvelope } from 'shared';
 import { FingerprintPipelineError } from '../services/fingerprint-envelope-validator.js';
-import type {
-  BrowserRuntimeContextSeed,
-  FingerprintReadinessExpectation,
-} from './playwright-runtime-adapter.js';
+import type { FingerprintReadinessExpectation } from './playwright-runtime-adapter.js';
 
 export interface PreparedFingerprintInjection {
-  readonly headers: Record<string, string>;
-  readonly initScript: string;
-  readonly contextSeed: BrowserRuntimeContextSeed;
+  readonly fingerprintWithHeaders: BrowserFingerprintWithHeaders;
+  readonly markerScript: string;
   readonly readiness: FingerprintReadinessExpectation;
 }
 
@@ -207,7 +202,6 @@ function battery(value: unknown): Record<string, string | number | boolean | nul
 
 export function mapFingerprintEnvelope(
   envelope: FingerprintEnvelope,
-  injector: FingerprintInjector = new FingerprintInjector(),
 ): PreparedFingerprintInjection {
   const source = record(envelope.payload.fingerprint, 'fingerprint');
   const mappedBattery = battery(source['battery']);
@@ -234,16 +228,8 @@ export function mapFingerprintEnvelope(
   };
   const markerScript = `Object.defineProperty(window, "__fingerprintVersion", { value: ${JSON.stringify(envelope.generatorVersion)}, configurable: false, enumerable: false, writable: false });`;
   return {
-    headers: injector.getInjectableHeaders(mapped.headers, 'chromium'),
-    initScript: `${injector.getInjectableScript(mapped)};${markerScript}`,
-    contextSeed: {
-      userAgent: fingerprint.navigator.userAgent,
-      viewport: {
-        width: fingerprint.screen.width,
-        height: fingerprint.screen.height,
-      },
-      deviceScaleFactor: fingerprint.screen.devicePixelRatio,
-    },
+    fingerprintWithHeaders: mapped,
+    markerScript,
     readiness: {
       userAgent: fingerprint.navigator.userAgent,
       platform: fingerprint.navigator.platform,

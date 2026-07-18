@@ -3,7 +3,8 @@ import fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { chromium, type Browser } from 'playwright';
-import { afterEach, describe, expect, it } from 'vitest';
+import { FingerprintInjector } from 'fingerprint-injector';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PlaywrightRuntimeAdapter } from '../../adapters/playwright-runtime-adapter.js';
 import { runMigrations } from '../../database/migration-runner.js';
 import { ProfileRepository } from '../../database/repositories/profile-repository.js';
@@ -29,7 +30,6 @@ afterEach(() => {
   for (const database of databases.splice(0)) database.close();
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
-
 describe('Playwright fingerprint injection order', () => {
   it('does not expose the automation endpoint before readiness', async () => {
     const root = fs.mkdtempSync(join(tmpdir(), 'playwright-readiness-gate-'));
@@ -39,9 +39,7 @@ describe('Playwright fingerprint injection order', () => {
       browserVersion: '147.0.7727.15', architecture: getHostArchitecture(),
       automationProtocol: 'cdp', userDataDir: root, headless: true,
     });
-    const adapter = await PlaywrightRuntimeAdapter.connect(handle, {
-      userAgent: 'gate-test', viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1,
-    });
+    const adapter = await PlaywrightRuntimeAdapter.connect(handle);
     try {
       expect(() => adapter.getAutomationEndpoint()).toThrow(expect.objectContaining({
         code: 'FINGERPRINT_READINESS_FAILED',
@@ -96,9 +94,11 @@ describe('Playwright fingerprint injection order', () => {
       now,
     });
     let observer: Browser | undefined;
+    const attachSpy = vi.spyOn(FingerprintInjector.prototype, 'attachFingerprintToPlaywright');
     try {
       const session = await service.launch({ profileId: 'profile-playwright', headless: true });
       expect(session.state).toBe('running');
+      expect(attachSpy).toHaveBeenCalledOnce();
       if (!processHandle) throw new Error('Browser process handle was not captured.');
       if (session.automation.protocol !== 'cdp') throw new Error('Expected a CDP endpoint.');
       observer = await chromium.connectOverCDP(session.automation.endpoint);

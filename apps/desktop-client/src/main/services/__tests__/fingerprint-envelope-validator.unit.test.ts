@@ -3,7 +3,7 @@ import {
   TEST_FINGERPRINT_KEY_ID,
   TEST_FINGERPRINT_PUBLIC_KEY,
   signedFingerprintFixture,
-} from '../../test/signed-fingerprint-fixture.js';
+} from '../../../../test/fixtures/fingerprint/signed-fingerprint-fixture.js';
 import {
   FingerprintEnvelopeValidator,
   canonicalizeFingerprintValue,
@@ -13,7 +13,7 @@ const NOW = new Date('2026-01-01T00:30:00.000Z');
 
 function validator(mode: 'test' | 'production' = 'test'): FingerprintEnvelopeValidator {
   return new FingerprintEnvelopeValidator(
-    { [TEST_FINGERPRINT_KEY_ID]: TEST_FINGERPRINT_PUBLIC_KEY },
+    mode === 'production' ? {} : { [TEST_FINGERPRINT_KEY_ID]: TEST_FINGERPRINT_PUBLIC_KEY },
     mode,
     () => NOW,
   );
@@ -48,6 +48,14 @@ describe('FingerprintEnvelopeValidator', () => {
     expect(() => validator('production').parseAndVerifySignature(signed)).toThrow(
       expect.objectContaining({ code: 'FINGERPRINT_INTEGRITY_INVALID' }),
     );
+  });
+
+  it('rejects a production public-key bundle containing a test key ID', () => {
+    expect(() => new FingerprintEnvelopeValidator(
+      { [TEST_FINGERPRINT_KEY_ID]: TEST_FINGERPRINT_PUBLIC_KEY },
+      'production',
+      () => NOW,
+    )).toThrow(expect.objectContaining({ code: 'FINGERPRINT_INTEGRITY_INVALID' }));
   });
 
   it.each([

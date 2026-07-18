@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { FingerprintGenerator } from 'fingerprint-generator';
 import fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -30,7 +31,6 @@ afterEach(() => {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }
 });
-
 class FakeProcessHandle implements BrowserProcessHandle {
   readonly pid = 4242;
   readonly wsEndpoint = 'ws://127.0.0.1/fake';
@@ -76,7 +76,7 @@ function fingerprintPipeline(now: () => Date): Pick<
     async connect(process) {
       return {
         pid: process.pid,
-        async applyPrePageConfiguration() {},
+        async applyFingerprint() {},
         async verifyReadiness() {},
         getAutomationEndpoint: () => ({ ...process.automation }),
         stop: () => process.stop(),
@@ -89,9 +89,10 @@ function fingerprintPipeline(now: () => Date): Pick<
     fingerprintValidator: validator,
     runtimeFactory,
     fingerprintMapper: () => ({
-      headers: {},
-      initScript: 'void 0',
-      contextSeed: { userAgent: 'test', viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
+      fingerprintWithHeaders: new FingerprintGenerator().getFingerprint({
+        browsers: ['chrome'], operatingSystems: ['windows'], devices: ['desktop'], locales: ['en-US'],
+      }),
+      markerScript: 'void 0',
       readiness: {
         userAgent: 'test', platform: 'Win32', language: 'en-US',
         screenWidth: 1280, screenHeight: 720, injectedMarker: 'test-generator',
@@ -207,6 +208,32 @@ describe('BrowserApplicationService lifecycle', () => {
     await service.stop('session-1');
     expect(new BrowserSessionRepository(context.db).findById('session-1')?.state).toBe('stopped');
     expect(fs.existsSync(join(context.root, 'profile_profile-1', 'session.lock'))).toBe(false);
+  });
+
+  it('persists a crash and releases the lock when the running process exits', async () => {
+    const context = fixture();
+    insertProfile(context.db);
+    const launcher = new FakeLauncher();
+    const service = new BrowserApplicationService(context.databaseService, {
+      ...fingerprintPipeline(() => new Date('2026-01-01T00:00:00.000Z')),
+      storageResolver: context.resolver,
+      lockManager: new ProfileLockManager(context.resolver, {
+        instanceId: 'instance-exit', processId: 1002, isProcessAlive: () => true,
+      }),
+      launcher,
+      idGenerator: () => 'session-exit',
+      now: () => new Date('2026-01-01T00:00:00.000Z'),
+    });
+
+    await service.launch({ profileId: 'profile-1' });
+    launcher.handles[0]?.crash(137);
+
+    expect(new BrowserSessionRepository(context.db).findById('session-exit')).toMatchObject({
+      state: 'crashed', exit_code: 137, termination_reason: 'browser_process_exit',
+    });
+    const lockPath = join(context.root, 'profile_profile-1', 'session.lock');
+    while (fs.existsSync(lockPath)) await new Promise((resolve) => setImmediate(resolve));
+    expect(service.getActiveForProfile('profile-1')).toBeUndefined();
   });
 
   it('marks interrupted sessions crashed and removes only stale owned locks', () => {

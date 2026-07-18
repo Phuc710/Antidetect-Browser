@@ -1,6 +1,6 @@
 import type { KeyLike } from 'crypto';
 import type { FingerprintEnvelope, FingerprintPayloadDto, UnsignedFingerprintEnvelope } from 'shared';
-import { signFingerprintEnvelope } from '../services/fingerprint-envelope-validator.js';
+import { signFingerprintEnvelope } from '../../../src/main/services/fingerprint-envelope-validator.js';
 
 export const TEST_FINGERPRINT_KEY_ID = 'test:fixture';
 export const TEST_FINGERPRINT_PUBLIC_KEY = 'FzpyxFC8kLGH55_hkcHCw-bcdyp1FXv9bWziJkVoFVo';

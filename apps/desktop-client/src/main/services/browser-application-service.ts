@@ -158,6 +158,12 @@ interface ActiveSession {
   removeExitListener: () => void;
 }
 
+interface PendingSession {
+  cancelRequested: boolean;
+  processHandle?: BrowserProcessHandle;
+  runtime?: BrowserRuntimeSession;
+}
+
 interface ResolvedPreparedFingerprint {
   readonly prepared: PreparedFingerprintInjection;
   readonly envelope: Parameters<typeof mapFingerprintEnvelope>[0];
@@ -183,6 +189,7 @@ export class BrowserApplicationService {
   private readonly listeners = new Set<(event: ProfileRuntimeEvent) => void>();
   private readonly eventBuffer: ProfileRuntimeEvent[] = [];
   private readonly stoppingSessions = new Set<string>();
+  private readonly pendingSessions = new Map<string, PendingSession>();
 
   constructor(db: DatabaseConnectionProvider, options: BrowserApplicationServiceOptions) {
     const connection = db.getConnection();
@@ -256,6 +263,9 @@ export class BrowserApplicationService {
     let runtime: BrowserRuntimeSession | undefined;
     let registeredActive: ActiveSession | undefined;
     const sessionId = this.idGenerator();
+    const pendingSession: PendingSession = {
+      cancelRequested: false,
+    };
 
     try {
       if (this.sessionRepository.getActiveForProfile(options.profileId)) {
@@ -274,6 +284,7 @@ export class BrowserApplicationService {
         ...descriptor,
       });
       sessionCreated = true;
+      this.pendingSessions.set(sessionId, pendingSession);
       this.publish(validating);
       this.transition(sessionId, 'acquiring_lock');
 
@@ -288,13 +299,19 @@ export class BrowserApplicationService {
         userDataDir: this.storageResolver.resolvePath(profile.storage_key),
         headless: options.headless ?? false,
       });
-      runtime = await this.runtimeFactory.connect(processHandle, resolvedFingerprint.prepared.contextSeed);
+      pendingSession.processHandle = processHandle;
+      this.assertLaunchNotCancelled(pendingSession);
+      runtime = await this.runtimeFactory.connect(processHandle);
+      pendingSession.runtime = runtime;
+      this.assertLaunchNotCancelled(pendingSession);
       this.transition(sessionId, 'starting', { startedAt });
-      await runtime.applyPrePageConfiguration(
-        resolvedFingerprint.prepared.headers,
-        resolvedFingerprint.prepared.initScript,
+      await runtime.applyFingerprint(
+        resolvedFingerprint.prepared.fingerprintWithHeaders,
+        resolvedFingerprint.prepared.markerScript,
       );
+      this.assertLaunchNotCancelled(pendingSession);
       await runtime.verifyReadiness(resolvedFingerprint.prepared.readiness);
+      this.assertLaunchNotCancelled(pendingSession);
       const automation = runtime.getAutomationEndpoint();
       if (resolvedFingerprint.shouldCache) {
         try {
@@ -328,8 +345,14 @@ export class BrowserApplicationService {
         readyAt,
       });
       view.state = running.state;
+      this.pendingSessions.delete(sessionId);
       return view;
     } catch (error: unknown) {
+      const launchError = pendingSession.cancelRequested
+        ? Object.assign(new Error('Browser launch was cancelled by a stop request.'), {
+          code: 'LAUNCH_FAILED',
+        })
+        : error;
       if (registeredActive) {
         registeredActive.removeExitListener();
         this.sessions.delete(sessionId);
@@ -345,21 +368,35 @@ export class BrowserApplicationService {
       }
       if (sessionCreated) {
         const occurredAt = this.now().toISOString();
-        const errorCode = getErrorCode(error);
-        this.publish(this.sessionRepository.transition(sessionId, 'error', occurredAt, {
-          stoppedAt: occurredAt,
-          terminationReason: 'launch_failed',
-          errorCode,
-        }));
+        if (pendingSession.cancelRequested) {
+          this.publish(this.sessionRepository.transition(sessionId, 'stopped', occurredAt, {
+            stoppedAt: occurredAt,
+            terminationReason: 'requested_during_starting',
+          }));
+        } else {
+          this.publish(this.sessionRepository.transition(sessionId, 'error', occurredAt, {
+            stoppedAt: occurredAt,
+            terminationReason: 'launch_failed',
+            errorCode: getErrorCode(launchError),
+          }));
+        }
       }
       if (durableLockAcquired) this.lockManager.releaseDurableLock(options.profileId, sessionId);
-      throw error;
+      throw launchError;
     } finally {
+      this.pendingSessions.delete(sessionId);
       this.lockManager.releaseInProcessMutex(options.profileId);
     }
   }
 
   async stop(sessionId: string): Promise<void> {
+    const pending = this.pendingSessions.get(sessionId);
+    if (pending) {
+      pending.cancelRequested = true;
+      if (pending.runtime) await pending.runtime.stop();
+      else if (pending.processHandle) await pending.processHandle.stop();
+      return;
+    }
     const active = this.sessions.get(sessionId);
     if (!active) return;
     if (this.stoppingSessions.has(sessionId)) return;
@@ -392,7 +429,8 @@ export class BrowserApplicationService {
   }
 
   async shutdown(): Promise<void> {
-    await Promise.allSettled([...this.sessions.keys()].map((sessionId) => this.stop(sessionId)));
+    const sessionIds = new Set([...this.pendingSessions.keys(), ...this.sessions.keys()]);
+    await Promise.allSettled([...sessionIds].map((sessionId) => this.stop(sessionId)));
     this.lockManager.shutdown();
   }
 
@@ -431,6 +469,14 @@ export class BrowserApplicationService {
     const event = this.sessionRepository.transition(sessionId, state, this.now().toISOString(), updates);
     this.publish(event);
     return event;
+  }
+
+  private assertLaunchNotCancelled(pending: PendingSession): void {
+    if (pending.cancelRequested) {
+      throw Object.assign(new Error('Browser launch was cancelled by a stop request.'), {
+        code: 'LAUNCH_FAILED',
+      });
+    }
   }
 
   private handleUnexpectedExit(sessionId: string, exitCode?: number): void {

@@ -4,7 +4,7 @@ import {
   TEST_FINGERPRINT_PRIVATE_KEY,
   TEST_FINGERPRINT_PUBLIC_KEY,
   signedFingerprintFixture,
-} from '../../test/signed-fingerprint-fixture.js';
+} from '../../../../test/fixtures/fingerprint/signed-fingerprint-fixture.js';
 import { FingerprintEnvelopeValidator } from '../fingerprint-envelope-validator.js';
 import {
   CloudFingerprintProvider,

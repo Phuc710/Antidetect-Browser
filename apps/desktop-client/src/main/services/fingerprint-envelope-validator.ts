@@ -227,7 +227,14 @@ export class FingerprintEnvelopeValidator {
     private readonly publicKeys: FingerprintPublicKeyBundle,
     private readonly mode: ApplicationMode,
     private readonly now: () => Date = () => new Date(),
-  ) {}
+  ) {
+    if (mode === 'production' && Object.keys(publicKeys).some((keyId) => keyId.startsWith('test:'))) {
+      throw new FingerprintPipelineError(
+        'FINGERPRINT_INTEGRITY_INVALID',
+        'Production fingerprint key bundle contains a forbidden test key.',
+      );
+    }
+  }
 
   parseAndVerifySignature(value: unknown): FingerprintEnvelope {
     const envelope = parseFingerprintEnvelope(value);

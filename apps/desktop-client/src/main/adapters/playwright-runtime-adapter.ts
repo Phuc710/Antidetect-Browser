@@ -1,3 +1,5 @@
+import type { BrowserFingerprintWithHeaders } from 'fingerprint-generator';
+import { FingerprintInjector } from 'fingerprint-injector';
 import type { Browser, BrowserContext, Page } from 'playwright';
 import type {
   AutomationConnection,
@@ -7,15 +9,6 @@ import { FingerprintPipelineError } from '../services/fingerprint-envelope-valid
 import { Logger } from '../services/logger.js';
 
 const logger = new Logger('PlaywrightRuntimeAdapter');
-
-export interface BrowserRuntimeContextSeed {
-  readonly userAgent: string;
-  readonly viewport: {
-    readonly width: number;
-    readonly height: number;
-  };
-  readonly deviceScaleFactor: number;
-}
 
 export interface FingerprintReadinessExpectation {
   readonly userAgent: string;
@@ -28,7 +21,10 @@ export interface FingerprintReadinessExpectation {
 
 export interface BrowserRuntimeSession {
   readonly pid: number;
-  applyPrePageConfiguration(headers: Record<string, string>, initScript: string): Promise<void>;
+  applyFingerprint(
+    fingerprintWithHeaders: BrowserFingerprintWithHeaders,
+    markerScript: string,
+  ): Promise<void>;
   verifyReadiness(expected: FingerprintReadinessExpectation): Promise<void>;
   getAutomationEndpoint(): AutomationConnection;
   stop(): Promise<void>;
@@ -36,10 +32,7 @@ export interface BrowserRuntimeSession {
 }
 
 export interface BrowserRuntimeSessionFactory {
-  connect(
-    process: BrowserProcessHandle,
-    contextSeed: BrowserRuntimeContextSeed,
-  ): Promise<BrowserRuntimeSession>;
+  connect(process: BrowserProcessHandle): Promise<BrowserRuntimeSession>;
 }
 
 interface ReadinessProbeResult {
@@ -60,11 +53,12 @@ export class PlaywrightRuntimeAdapter implements BrowserRuntimeSession {
     private readonly process: BrowserProcessHandle,
     private readonly browser: Browser,
     private readonly context: BrowserContext,
+    private readonly injector: FingerprintInjector,
   ) {}
 
   static async connect(
     process: BrowserProcessHandle,
-    _contextSeed: BrowserRuntimeContextSeed,
+    injector: FingerprintInjector = new FingerprintInjector(),
   ): Promise<PlaywrightRuntimeAdapter> {
     const { chromium } = await import('playwright');
     let browser: Browser | undefined;
@@ -83,7 +77,7 @@ export class PlaywrightRuntimeAdapter implements BrowserRuntimeSession {
           'Chromium did not expose its default automation context.',
         );
       }
-      return new PlaywrightRuntimeAdapter(process, browser, context);
+      return new PlaywrightRuntimeAdapter(process, browser, context, injector);
     } catch (error: unknown) {
       await browser?.close().catch(() => undefined);
       await process.stop().catch(() => undefined);
@@ -99,9 +93,9 @@ export class PlaywrightRuntimeAdapter implements BrowserRuntimeSession {
     return this.process.pid;
   }
 
-  async applyPrePageConfiguration(
-    headers: Record<string, string>,
-    initScript: string,
+  async applyFingerprint(
+    fingerprintWithHeaders: BrowserFingerprintWithHeaders,
+    markerScript: string,
   ): Promise<void> {
     if (this.configurationApplied || this.readinessConfirmed) {
       throw new FingerprintPipelineError(
@@ -110,8 +104,11 @@ export class PlaywrightRuntimeAdapter implements BrowserRuntimeSession {
       );
     }
     try {
-      await this.context.setExtraHTTPHeaders(headers);
-      await this.context.addInitScript({ content: initScript });
+      await this.injector.attachFingerprintToPlaywright(
+        this.context,
+        fingerprintWithHeaders,
+      );
+      await this.context.addInitScript({ content: markerScript });
       this.configurationApplied = true;
     } catch (error: unknown) {
       throw new FingerprintPipelineError(
@@ -206,10 +203,7 @@ export class PlaywrightRuntimeAdapter implements BrowserRuntimeSession {
 }
 
 export class PlaywrightRuntimeSessionFactory implements BrowserRuntimeSessionFactory {
-  connect(
-    process: BrowserProcessHandle,
-    contextSeed: BrowserRuntimeContextSeed,
-  ): Promise<BrowserRuntimeSession> {
-    return PlaywrightRuntimeAdapter.connect(process, contextSeed);
+  connect(process: BrowserProcessHandle): Promise<BrowserRuntimeSession> {
+    return PlaywrightRuntimeAdapter.connect(process);
   }
 }

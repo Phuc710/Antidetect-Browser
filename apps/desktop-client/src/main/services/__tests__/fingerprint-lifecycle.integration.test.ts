@@ -1,11 +1,11 @@
 import Database from 'better-sqlite3';
+import { FingerprintGenerator } from 'fingerprint-generator';
 import fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { FingerprintEnvelope } from 'shared';
 import type {
-  BrowserRuntimeContextSeed,
   BrowserRuntimeSession,
   BrowserRuntimeSessionFactory,
   FingerprintReadinessExpectation,
@@ -15,7 +15,7 @@ import { BrowserSessionRepository } from '../../database/repositories/browser-se
 import { FingerprintEnvelopeCacheRepository } from '../../database/repositories/fingerprint-envelope-cache-repository.js';
 import { ProfileRepository } from '../../database/repositories/profile-repository.js';
 import { getHostArchitecture } from '../../../shared/profile-contracts.js';
-import { signedFingerprintFixture, TEST_FINGERPRINT_KEY_ID, TEST_FINGERPRINT_PUBLIC_KEY } from '../../test/signed-fingerprint-fixture.js';
+import { signedFingerprintFixture, TEST_FINGERPRINT_KEY_ID, TEST_FINGERPRINT_PUBLIC_KEY } from '../../../../test/fixtures/fingerprint/signed-fingerprint-fixture.js';
 import {
   BrowserApplicationService,
   type BrowserProcessHandle,
@@ -28,12 +28,12 @@ import { ProfileStorageResolver } from '../profile-storage-resolver.js';
 const NOW = new Date('2026-01-01T00:30:00.000Z');
 const roots: string[] = [];
 const databases: Database.Database[] = [];
+type RuntimeFailure = 'none' | 'injection' | 'readiness' | 'starting';
 
 afterEach(() => {
   for (const database of databases.splice(0)) database.close();
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
-
 class TrackingHandle implements BrowserProcessHandle {
   readonly pid = 4545;
   readonly wsEndpoint = 'ws://127.0.0.1/tracking';
@@ -56,15 +56,22 @@ class TrackingRuntime implements BrowserRuntimeSession {
   constructor(
     private readonly handle: TrackingHandle,
     private readonly events: string[],
-    private readonly readinessFailure = false,
+    private readonly failure: RuntimeFailure = 'none',
+    private readonly startingGate: Promise<void> = Promise.resolve(),
   ) {
     this.pid = handle.pid;
   }
 
-  async applyPrePageConfiguration(): Promise<void> { this.events.push('apply'); }
+  async applyFingerprint(): Promise<void> {
+    this.events.push('apply');
+    if (this.failure === 'injection') {
+      throw new FingerprintPipelineError('FINGERPRINT_INJECTION_FAILED', 'test injection failure');
+    }
+  }
   async verifyReadiness(): Promise<void> {
     this.events.push('verify');
-    if (this.readinessFailure) {
+    if (this.failure === 'starting') await this.startingGate;
+    if (this.failure === 'readiness') {
       throw new FingerprintPipelineError('FINGERPRINT_READINESS_FAILED', 'test readiness failure');
     }
     this.verified = true;
@@ -84,7 +91,7 @@ class TrackingRuntime implements BrowserRuntimeSession {
   }
 }
 
-function setup(readinessFailure = false) {
+function setup(failure: RuntimeFailure = 'none') {
   const database = new Database(':memory:');
   database.pragma('foreign_keys = ON');
   runMigrations(database);
@@ -93,15 +100,19 @@ function setup(readinessFailure = false) {
   roots.push(root);
   const resolver = new ProfileStorageResolver(root);
   const events: string[] = [];
+  let releaseStarting = (): void => {};
+  const startingGate = failure === 'starting'
+    ? new Promise<void>((resolve) => { releaseStarting = resolve; })
+    : Promise.resolve();
   const handle = new TrackingHandle();
   const launcher: BrowserProcessLauncher = {
     async launch() { events.push('launch'); return handle; },
   };
   let runtime: TrackingRuntime | undefined;
   const runtimeFactory: BrowserRuntimeSessionFactory = {
-    async connect(_process: BrowserProcessHandle, _seed: BrowserRuntimeContextSeed) {
+    async connect(_process: BrowserProcessHandle) {
       events.push('connect');
-      runtime = new TrackingRuntime(handle, events, readinessFailure);
+      runtime = new TrackingRuntime(handle, events, failure, startingGate);
       return runtime;
     },
   };
@@ -121,16 +132,18 @@ function setup(readinessFailure = false) {
     instanceId: 'fingerprint-test', processId: 8080, isProcessAlive: () => true,
   });
   const prepared = {
-    headers: { 'accept-language': 'en-US' },
-    initScript: 'Object.defineProperty(window, "__fingerprintVersion", { value: "test" })',
-    contextSeed: { userAgent: 'test-ua', viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 },
+    fingerprintWithHeaders: new FingerprintGenerator().getFingerprint({
+      browsers: ['chrome'], operatingSystems: ['windows'], devices: ['desktop'], locales: ['en-US'],
+    }),
+    markerScript: 'Object.defineProperty(window, "__fingerprintVersion", { value: "test" })',
     readiness: {
       userAgent: 'test-ua', platform: 'Win32', language: 'en-US', screenWidth: 1280,
       screenHeight: 720, injectedMarker: 'test',
     } satisfies FingerprintReadinessExpectation,
   };
   return {
-    database, root, events, handle, validator, envelope, launcher, runtimeFactory, lockManager,
+    database, root, events, handle, validator, envelope, launcher, runtimeFactory, lockManager, prepared,
+    releaseStarting,
     runtime: () => runtime,
     service(providerEnvelope: FingerprintEnvelope = envelope) {
       const service = new BrowserApplicationService({ getConnection: () => database }, {
@@ -168,7 +181,7 @@ describe('fingerprint lifecycle orchestration', () => {
   });
 
   it('closes runtime/process, records error, and releases the profile lock on readiness failure', async () => {
-    const context = setup(true);
+    const context = setup('readiness');
     const service = context.service();
     await expect(service.launch({ profileId: 'profile-1', headless: true })).rejects.toMatchObject({
       code: 'FINGERPRINT_READINESS_FAILED',
@@ -180,6 +193,43 @@ describe('fingerprint lifecycle orchestration', () => {
     expect(context.events).not.toContain('state:running');
     expect(new BrowserSessionRepository(context.database).findById('session-1')).toMatchObject({
       state: 'error', error_code: 'FINGERPRINT_READINESS_FAILED',
+    });
+    expect(fs.existsSync(join(context.root, 'profile_profile-1', 'session.lock'))).toBe(false);
+  });
+
+  it('cleans process, session, and profile lock when direct injector attachment fails', async () => {
+    const context = setup('injection');
+    const service = context.service();
+    await expect(service.launch({ profileId: 'profile-1', headless: true })).rejects.toMatchObject({
+      code: 'FINGERPRINT_INJECTION_FAILED',
+    });
+
+    expect(context.runtime()?.stopped).toBe(true);
+    expect(context.handle.stopped).toBe(true);
+    expect(context.events).not.toContain('verify');
+    expect(context.events).not.toContain('state:running');
+    expect(new BrowserSessionRepository(context.database).findById('session-1')).toMatchObject({
+      state: 'error', error_code: 'FINGERPRINT_INJECTION_FAILED',
+    });
+    expect(fs.existsSync(join(context.root, 'profile_profile-1', 'session.lock'))).toBe(false);
+  });
+
+  it('cancels and persists a stopped session when stop is requested during starting', async () => {
+    const context = setup('starting');
+    const service = context.service();
+    const launchPromise = service.launch({ profileId: 'profile-1', headless: true });
+    const launchRejection = expect(launchPromise).rejects.toMatchObject({ code: 'LAUNCH_FAILED' });
+
+    while (!context.events.includes('verify')) await new Promise((resolve) => setImmediate(resolve));
+    await service.stop('session-1');
+    context.releaseStarting();
+    await launchRejection;
+
+    expect(context.handle.stopped).toBe(true);
+    expect(context.events).not.toContain('endpoint');
+    expect(context.events).not.toContain('state:running');
+    expect(new BrowserSessionRepository(context.database).findById('session-1')).toMatchObject({
+      state: 'stopped', termination_reason: 'requested_during_starting', error_code: null,
     });
     expect(fs.existsSync(join(context.root, 'profile_profile-1', 'session.lock'))).toBe(false);
   });
@@ -210,14 +260,7 @@ describe('fingerprint lifecycle orchestration', () => {
         },
       },
       fingerprintValidator: context.validator,
-      fingerprintMapper: () => ({
-        headers: {}, initScript: 'void 0',
-        contextSeed: { userAgent: 'test', viewport: { width: 1, height: 1 }, deviceScaleFactor: 1 },
-        readiness: {
-          userAgent: 'test', platform: 'Win32', language: 'en-US', screenWidth: 1,
-          screenHeight: 1, injectedMarker: 'test',
-        },
-      }),
+      fingerprintMapper: () => context.prepared,
       runtimeFactory: context.runtimeFactory,
       launcher: context.launcher,
       storageResolver: new ProfileStorageResolver(context.root),

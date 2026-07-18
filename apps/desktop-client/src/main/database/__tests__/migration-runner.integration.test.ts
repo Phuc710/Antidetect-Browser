@@ -4,7 +4,7 @@ import { runMigrations } from '../migration-runner.js';
 import { MIGRATIONS, type Migration } from '../migrations.js';
 import { FingerprintEnvelopeCacheRepository } from '../repositories/fingerprint-envelope-cache-repository.js';
 import { ProfileRepository } from '../repositories/profile-repository.js';
-import { signedFingerprintFixture } from '../../test/signed-fingerprint-fixture.js';
+import { signedFingerprintFixture } from '../../../../test/fixtures/fingerprint/signed-fingerprint-fixture.js';
 
 const openDatabases: Database.Database[] = [];
 

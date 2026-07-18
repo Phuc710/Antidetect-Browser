@@ -21,7 +21,6 @@ import {
 import { Logger } from './logger.js';
 
 const logger = new Logger('FingerprintProvider');
-const DEVELOPMENT_KEY_ID = 'test:local-development';
 const DEVELOPMENT_ENVELOPE_LIFETIME_MS = 24 * 60 * 60 * 1_000;
 
 export interface FingerprintProviderRequest {
@@ -216,7 +215,7 @@ function rawPublicKey(publicKey: KeyObject): string {
 export function createEphemeralDevelopmentSigningMaterial(): DevelopmentSigningMaterial {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   return {
-    keyId: DEVELOPMENT_KEY_ID,
+    keyId: `test:${randomUUID()}`,
     privateKey,
     publicKey: rawPublicKey(publicKey),
   };
