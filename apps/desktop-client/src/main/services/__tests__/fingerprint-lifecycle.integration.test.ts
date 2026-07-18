@@ -196,11 +196,11 @@ describe('fingerprint lifecycle orchestration', () => {
     expect(context.handle.stopped).toBe(false);
   });
 
-  it('uses a still-valid signed cache entry only when the provider is unavailable', async () => {
+  it('uses a valid signed cache only when the provider is unavailable and policy permits it', async () => {
     const context = setup();
     new FingerprintEnvelopeCacheRepository(context.database)
       .store('profile-1', context.envelope, NOW.toISOString());
-    const service = new BrowserApplicationService({ getConnection: () => context.database }, {
+    const commonOptions = {
       fingerprintProvider: {
         async getVerifiedEnvelope() {
           throw new FingerprintPipelineError(
@@ -224,6 +224,18 @@ describe('fingerprint lifecycle orchestration', () => {
       lockManager: context.lockManager,
       idGenerator: () => 'session-cache',
       now: () => NOW,
+    };
+    const deniedService = new BrowserApplicationService(
+      { getConnection: () => context.database },
+      commonOptions,
+    );
+    await expect(deniedService.launch({ profileId: 'profile-1' })).rejects.toMatchObject({
+      code: 'FINGERPRINT_SERVICE_UNAVAILABLE',
+    });
+
+    const service = new BrowserApplicationService({ getConnection: () => context.database }, {
+      ...commonOptions,
+      canUseOfflineFingerprintCache: () => true,
     });
     await expect(service.launch({ profileId: 'profile-1' })).resolves.toMatchObject({
       sessionId: 'session-cache', state: 'running',

@@ -71,6 +71,7 @@ export interface BrowserApplicationServiceOptions {
   fingerprintValidator: FingerprintEnvelopeValidator;
   runtimeFactory?: BrowserRuntimeSessionFactory;
   fingerprintMapper?: (envelope: Parameters<typeof mapFingerprintEnvelope>[0]) => PreparedFingerprintInjection;
+  canUseOfflineFingerprintCache?: (profileId: string) => boolean;
   storageResolver?: ProfileStorageResolver;
   lockManager?: ProfileLockManager;
   launcher?: BrowserProcessLauncher;
@@ -174,6 +175,7 @@ export class BrowserApplicationService {
   private readonly fingerprintValidator: FingerprintEnvelopeValidator;
   private readonly runtimeFactory: BrowserRuntimeSessionFactory;
   private readonly fingerprintMapper: (envelope: Parameters<typeof mapFingerprintEnvelope>[0]) => PreparedFingerprintInjection;
+  private readonly canUseOfflineFingerprintCache: (profileId: string) => boolean;
   private readonly idGenerator: () => string;
   private readonly now: () => Date;
   private readonly deviceId: string;
@@ -194,6 +196,7 @@ export class BrowserApplicationService {
     this.fingerprintValidator = options.fingerprintValidator;
     this.runtimeFactory = options.runtimeFactory ?? new PlaywrightRuntimeSessionFactory();
     this.fingerprintMapper = options.fingerprintMapper ?? mapFingerprintEnvelope;
+    this.canUseOfflineFingerprintCache = options.canUseOfflineFingerprintCache ?? (() => false);
     this.idGenerator = options.idGenerator ?? randomUUID;
     this.now = options.now ?? (() => new Date());
     this.deviceId = options.deviceId ?? 'local_device';
@@ -495,6 +498,7 @@ export class BrowserApplicationService {
         || error.code !== 'FINGERPRINT_SERVICE_UNAVAILABLE') {
         throw error;
       }
+      if (!this.canUseOfflineFingerprintCache(profileId)) throw error;
       try {
         candidate = this.fingerprintCacheRepository.find(profileId);
       } catch (cacheError: unknown) {
