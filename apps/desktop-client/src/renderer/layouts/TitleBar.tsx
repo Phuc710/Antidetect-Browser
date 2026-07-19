@@ -1,142 +1,41 @@
-import { useState, useRef, useEffect } from 'react';
-import {
-  ShieldCheck,
-  Minus,
-  Square,
-  X,
-  User as UserIcon,
-  Sun,
-  Moon,
-  Monitor,
-  ChevronDown,
-  Palette,
-} from 'lucide-react';
-import { useAuthStore } from '../store/auth-store.js';
-import { useTheme } from '../store/theme-store.js';
-import { LanguageSelector } from '../components/LanguageSelector/LanguageSelector.js';
+import { Minus, Square, X } from 'lucide-react';
 import './TitleBar.css';
 
 export function TitleBar(): JSX.Element {
-  const { user } = useAuthStore();
-  const { mode, resolvedTheme, setThemeMode } = useTheme();
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Đóng dropdown khi click bên ngoài
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setThemeMenuOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
   return (
     <div className="title-bar">
-      {/* Left: Logo + app name */}
-      <div className="title-bar__logo">
-        <ShieldCheck className="title-bar__logo-icon" />
-        <span className="title-bar__logo-text">Antidetect Browser</span>
+      <div className="title-bar__app">
+        <span className="title-bar__mark" />
+        <span>RoxyBrowser v3.9.2</span>
       </div>
 
-      {/* Center: User Account, Language & Theme Dropdown */}
-      <div className="title-bar__user-section" ref={menuRef}>
-        {user && (
-          <div className="title-bar__user-info">
-            <span className="title-bar__user-avatar">
-              <UserIcon />
-            </span>
-            <span>{user.name || user.email}</span>
-          </div>
-        )}
-
-        <LanguageSelector />
-
-        {/* Nút đổi Giao diện (Themes) */}
-        <button
-          type="button"
-          className="title-bar__user-trigger"
-          onClick={() => setThemeMenuOpen((prev) => !prev)}
-          title="Đổi giao diện Sáng / Tối"
-          aria-expanded={themeMenuOpen}
-        >
-          {resolvedTheme === 'light' ? <Sun size={15} /> : <Moon size={15} />}
-          <span className="title-bar__mode-label">{mode}</span>
-          <ChevronDown size={13} />
-        </button>
-
-        {themeMenuOpen && (
-          <div className="title-bar__menu" role="menu">
-            <div className="title-bar__menu-header">
-              <Palette size={14} /> Chế độ giao diện
-            </div>
-
-            <button
-              type="button"
-              className={`title-bar__submenu-item ${mode === 'system' ? 'title-bar__submenu-item--active' : ''}`}
-              onClick={() => {
-                setThemeMode('system');
-                setThemeMenuOpen(false);
-              }}
-            >
-              <Monitor size={14} /> System (Hệ thống)
-            </button>
-            <button
-              type="button"
-              className={`title-bar__submenu-item ${mode === 'light' ? 'title-bar__submenu-item--active' : ''}`}
-              onClick={() => {
-                setThemeMode('light');
-                setThemeMenuOpen(false);
-              }}
-            >
-              <Sun size={14} /> Light (Giao diện sáng)
-            </button>
-            <button
-              type="button"
-              className={`title-bar__submenu-item ${mode === 'dark' ? 'title-bar__submenu-item--active' : ''}`}
-              onClick={() => {
-                setThemeMode('dark');
-                setThemeMenuOpen(false);
-              }}
-            >
-              <Moon size={14} /> Dark (Giao diện tối)
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Right: Window controls */}
       <div className="title-bar__controls">
         <button
-          className="icon-button"
-          aria-label="Thu nhỏ"
+          className="title-bar__control"
+          aria-label="Minimize"
           onClick={() => {
-            window.desktop.window.minimize().catch(() => { });
+            window.desktop.window.minimize().catch(() => undefined);
           }}
         >
-          <Minus className="icon-button__icon" />
+          <Minus size={13} />
         </button>
         <button
-          className="icon-button"
-          aria-label="Phóng to"
+          className="title-bar__control"
+          aria-label="Maximize"
           onClick={() => {
-            window.desktop.window.maximize().catch(() => { });
+            window.desktop.window.maximize().catch(() => undefined);
           }}
         >
-          <Square className="icon-button__icon--small" />
+          <Square size={11} />
         </button>
         <button
-          className="icon-button icon-button--danger"
-          aria-label="Đóng"
+          className="title-bar__control title-bar__control--close"
+          aria-label="Close"
           onClick={() => {
-            window.desktop.window.close().catch(() => { });
+            window.desktop.window.close().catch(() => undefined);
           }}
         >
-          <X className="icon-button__icon" />
+          <X size={14} />
         </button>
       </div>
     </div>

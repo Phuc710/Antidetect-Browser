@@ -1,144 +1,87 @@
-/* Theme Colors Specification */
+/* Theme colors aligned to the RoxyBrowser light desktop system. */
 :root,
-[data-theme='dark'] {
-  color-scheme: dark;
-
-  /* Background layers */
-  --color-bg-app: #0b0f17;
-  --color-bg-sidebar: #0e1420;
-  --color-bg-header: #111827;
-  --color-bg-content: #111722;
-  --color-bg-surface: #161e2b;
-  --color-bg-surface-raised: #1b2534;
-  --color-bg-surface-hover: #202c3d;
-  --color-bg-surface-active: #263449;
-  --color-bg-overlay: rgba(2, 6, 14, 0.76);
-
-  /* Borders */
-  --color-border-subtle: #202b3a;
-  --color-border-default: #2a3749;
-  --color-border-strong: #3a4a60;
-  --color-border-focus: #4f8cff;
-
-  /* Text */
-  --color-text-primary: #f3f6fb;
-  --color-text-secondary: #b7c0ce;
-  --color-text-muted: #7f8b9d;
-  --color-text-disabled: #536071;
-  --color-text-inverse: #07101f;
-
-  /* Brand / Accent */
-  --color-brand-50: #edf5ff;
-  --color-brand-100: #d9eaff;
-  --color-brand-200: #bcd9ff;
-  --color-brand-300: #8ec0ff;
-  --color-brand-400: #5ca2ff;
-  --color-brand-500: #367ff5;
-  --color-brand-600: #2563dd;
-  --color-brand-700: #214fb4;
-  --color-brand-800: #223f8e;
-  --color-brand-900: #21386f;
-
-  --color-accent: var(--color-brand-500);
-  --color-accent-hover: var(--color-brand-400);
-  --color-accent-active: var(--color-brand-600);
-  --color-accent-soft: rgba(54, 127, 245, 0.14);
-  --color-accent-border: rgba(92, 162, 255, 0.42);
-  --color-focus-ring: rgba(92, 162, 255, 0.72);
-
-  /* Semantic */
-  --color-success: #31c48d;
-  --color-success-hover: #48d6a1;
-  --color-success-soft: rgba(49, 196, 141, 0.14);
-  --color-warning: #f5b942;
-  --color-warning-hover: #ffc95f;
-  --color-warning-soft: rgba(245, 185, 66, 0.14);
-  --color-error: #ef5b67;
-  --color-error-hover: #ff717c;
-  --color-error-soft: rgba(239, 91, 103, 0.14);
-  --color-info: #52a8ff;
-  --color-info-soft: rgba(82, 168, 255, 0.14);
-
-  /* Profile states */
-  --color-status-stopped: #7f8b9d;
-  --color-status-starting: #f5b942;
-  --color-status-running: #31c48d;
-  --color-status-stopping: #f59e5b;
-  --color-status-syncing: #52a8ff;
-  --color-status-locked: #a78bfa;
-  --color-status-error: #ef5b67;
-
-  /* Components */
-  --color-input-bg: #111925;
-  --color-input-border: #2a3749;
-  --color-table-header: #121b28;
-  --color-table-row: transparent;
-  --color-table-row-hover: rgba(92, 162, 255, 0.055);
-  --color-table-row-selected: rgba(54, 127, 245, 0.13);
-  --color-scrollbar-thumb: #35445a;
-  --color-scrollbar-hover: #465a74;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.26);
-  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.38);
-  --shadow-dialog: 0 28px 80px rgba(0, 0, 0, 0.52);
-}
-
+[data-theme='dark'],
 [data-theme='light'] {
   color-scheme: light;
 
-  --color-bg-app: #eef2f7;
-  --color-bg-sidebar: #f7f9fc;
-  --color-bg-header: #ffffff;
-  --color-bg-content: #f4f7fb;
+  /* Background layers */
+  --color-bg-app: #eef4f8;
+  --color-bg-sidebar: #edf5fa;
+  --color-bg-header: #f5f9fc;
+  --color-bg-content: #ffffff;
   --color-bg-surface: #ffffff;
-  --color-bg-surface-raised: #ffffff;
-  --color-bg-surface-hover: #f1f5fa;
-  --color-bg-surface-active: #e8eef7;
+  --color-bg-surface-raised: #f1f8fd;
+  --color-bg-surface-hover: #e8f5fd;
+  --color-bg-surface-active: #d6efff;
   --color-bg-overlay: rgba(15, 23, 42, 0.42);
 
-  --color-border-subtle: #e4eaf1;
-  --color-border-default: #d6dee9;
-  --color-border-strong: #bbc7d6;
-  --color-border-focus: #367ff5;
+  /* Borders */
+  --color-border-subtle: #e4edf3;
+  --color-border-default: #cfdbe4;
+  --color-border-strong: #aebfcb;
+  --color-border-focus: #139ced;
 
-  --color-text-primary: #172033;
-  --color-text-secondary: #46536a;
-  --color-text-muted: #748198;
-  --color-text-disabled: #a0aabc;
+  /* Text */
+  --color-text-primary: #111820;
+  --color-text-secondary: #4e5c67;
+  --color-text-muted: #8795a0;
+  --color-text-disabled: #aebfcb;
   --color-text-inverse: #ffffff;
 
-  --color-accent: #2f72df;
-  --color-accent-hover: #2563c8;
-  --color-accent-active: #1f54ad;
-  --color-accent-soft: rgba(47, 114, 223, 0.1);
-  --color-accent-border: rgba(47, 114, 223, 0.32);
-  --color-focus-ring: rgba(47, 114, 223, 0.48);
+  /* Brand / Accent Colors */
+  --color-brand-50: #e3f4ff;
+  --color-brand-100: #c9eafa;
+  --color-brand-200: #91d3fa;
+  --color-brand-300: #54bcfb;
+  --color-brand-400: #1ca5fb;
+  --color-brand-500: #139ced;
+  --color-brand-600: #078cd9;
+  --color-brand-700: #067cc1;
+  --color-brand-800: #04588a;
+  --color-brand-900: #023859;
 
-  --color-success: #16865f;
-  --color-success-hover: #117350;
-  --color-success-soft: rgba(22, 134, 95, 0.1);
-  --color-warning: #b87908;
-  --color-warning-hover: #9c6505;
-  --color-warning-soft: rgba(184, 121, 8, 0.1);
-  --color-error: #d43d4c;
-  --color-error-hover: #b82f3d;
-  --color-error-soft: rgba(212, 61, 76, 0.1);
-  --color-info: #2677cc;
-  --color-info-soft: rgba(38, 119, 204, 0.1);
+  --color-accent: #139ced;
+  --color-accent-hover: #078cd9;
+  --color-accent-active: #067cc1;
+  --color-accent-soft: #e3f4ff;
+  --color-accent-border: #cfdbe4;
+  --color-focus-ring: rgba(19, 156, 237, 0.16);
 
+  /* Semantic Diagnostics */
+  --color-success: #20b86a;
+  --color-success-hover: #199e58;
+  --color-success-soft: #e4f8ee;
+  --color-warning: #ff9f1a;
+  --color-warning-hover: #e08b15;
+  --color-warning-soft: #fff5e6;
+  --color-error: #ef4e55;
+  --color-error-hover: #d23e44;
+  --color-error-soft: #fdeeee;
+  --color-info: #139ced;
+  --color-info-soft: #e3f4ff;
+
+  /* Browser Profile States */
+  --color-status-stopped: #8795a0;
+  --color-status-starting: #ff9f1a;
+  --color-status-running: #20b86a;
+  --color-status-stopping: #ff9f1a;
+  --color-status-syncing: #139ced;
+  --color-status-locked: #a78bfa;
+  --color-status-error: #ef4e55;
+
+  /* Form & Input Components */
   --color-input-bg: #ffffff;
-  --color-input-border: #ccd6e3;
-  --color-table-header: #f6f8fb;
+  --color-input-border: #cfdbe4;
+  --color-table-header: #f5f9fc;
   --color-table-row: #ffffff;
-  --color-table-row-hover: #f3f7fc;
-  --color-table-row-selected: #eaf2ff;
+  --color-table-row-hover: #e8f5fd;
+  --color-table-row-selected: #d6efff;
   --color-scrollbar-thumb: #c2ccd9;
   --color-scrollbar-hover: #aab6c6;
 
-  --shadow-sm: 0 1px 2px rgba(17, 32, 55, 0.07);
-  --shadow-md: 0 8px 24px rgba(17, 32, 55, 0.1);
-  --shadow-lg: 0 18px 48px rgba(17, 32, 55, 0.14);
-  --shadow-dialog: 0 28px 80px rgba(17, 32, 55, 0.2);
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(33, 55, 72, 0.08);
+  --shadow-md: 0 2px 8px rgba(33, 55, 72, 0.14);
+  --shadow-lg: 0 8px 24px rgba(33, 55, 72, 0.18);
+  --shadow-dialog: 0 12px 32px rgba(33, 55, 72, 0.22);
 }

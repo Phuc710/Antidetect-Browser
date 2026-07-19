@@ -89,5 +89,10 @@
             "version": "10.33.4",
             "onFail": "warn"
         }
+    },
+    "dependencies": {
+        "@tabler/icons-react": "^3.45.0",
+        "bootstrap-icons": "^1.13.1",
+        "simple-icons": "^16.26.0"
     }
 }

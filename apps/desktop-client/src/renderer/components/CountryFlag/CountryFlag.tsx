@@ -1,41 +1,42 @@
-// CountryFlag — reusable component using FlagCDN (flagcdn.com)
-// CDN tĩnh theo URL convention — không phải API JSON động.
-// URL: https://flagcdn.com/{w}x{h}/{code}.webp
+// CountryFlag — 100% offline local SVG flag component
+// Loads 254 country flag SVGs directly from local assets/flags/*.svg via Vite eager globbing
 import './CountryFlag.css';
 
+const flagMap = import.meta.glob<string>('../../assets/flags/*.svg', {
+  eager: true,
+  import: 'default',
+});
+
 interface CountryFlagProps {
-  code: string;           // ISO 3166-1 alpha-2 lowercase: "vn", "us", "de"
-  name: string;           // Alt text
+  code: string; // ISO 3166-1 alpha-2: "vn", "us", "de"
+  name?: string; // Alt text or label
   size?: 16 | 20 | 24 | 32 | 40 | 48;
   className?: string | undefined;
 }
 
 export function CountryFlag({ code, name, size = 20, className }: CountryFlagProps): JSX.Element | null {
-  if (!code || code.trim().length !== 2) return null;
+  if (!code || code.trim().length === 0) return null;
 
   const c = code.trim().toLowerCase();
+  const path = `../../assets/flags/${c}.svg`;
+  const fallbackPath = '../../assets/flags/xx.svg';
+
+  const src = flagMap[path] || flagMap[fallbackPath];
+  if (!src) return null;
+
   const w = size;
-  const h = Math.round(size * 0.75); // Tỷ lệ 4:3
+  const h = Math.round(size * 0.75); // 4:3 ratio
 
   return (
-    <picture className={`country-flag ${className ?? ''}`}>
-      <source
-        type="image/webp"
-        srcSet={`https://flagcdn.com/${w}x${h}/${c}.webp, https://flagcdn.com/${w * 2}x${h * 2}/${c}.webp 2x`}
-      />
+    <span className={`country-flag ${className ?? ''}`} style={{ width: w, height: h }}>
       <img
-        src={`https://flagcdn.com/${w}x${h}/${c}.png`}
+        src={src}
         width={w}
         height={h}
-        alt={name}
+        alt={name || c.toUpperCase()}
         loading="lazy"
         className="country-flag__img"
-        onError={(e) => {
-          // Graceful fallback: ẩn ảnh nếu code không hợp lệ
-          e.currentTarget.style.display = 'none';
-          (e.currentTarget.previousElementSibling as HTMLElement | null)?.setAttribute('srcSet', '');
-        }}
       />
-    </picture>
+    </span>
   );
 }

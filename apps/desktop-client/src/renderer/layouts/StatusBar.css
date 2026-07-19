@@ -1,27 +1,27 @@
 .status-bar {
   display: flex;
-  height: var(--statusbar-height, 28px);
+  height: var(--statusbar-height, 24px);
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   border-top: 1px solid var(--color-border-subtle);
-  background-color: var(--color-bg-header);
-  padding: 0 var(--space-4);
+  background-color: var(--color-bg-sidebar);
+  padding: 0 var(--space-3);
   user-select: none;
-  transition: background-color var(--duration-fast), border-color var(--duration-fast);
+  font-family: inherit;
 }
 
 .status-bar__list {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .status-bar__item {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--font-size-xs);
+  font-size: 11px;
   color: var(--color-text-muted);
 }
 
@@ -34,15 +34,15 @@
 }
 
 .status-bar__item--idle {
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 }
 
 .status-bar__item-icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 .status-bar__version {
-  font-size: var(--font-size-xs);
+  font-size: 11px;
   color: var(--color-text-muted);
 }

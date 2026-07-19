@@ -8,15 +8,17 @@ vi.mock('react-router-dom', () => ({
 }));
 
 describe('CreateProfilePage', () => {
-  it('renders a full page form without dialog semantics or fake fingerprint values', () => {
+  it('renders the Roxy-style full page profile editor', () => {
     const html = renderToStaticMarkup(<CreateProfilePage />);
 
-    expect(html).toContain('Create Single');
-    expect(html).toContain('Automatic fingerprint policy');
-    expect(html).toContain('Automatic fingerprint policy');
+    expect(html).toContain('Create Profile');
+    expect(html).toContain('Profile Info');
+    expect(html).toContain('System');
+    expect(html).toContain('Kernel');
+    expect(html).toContain('User-Agent');
+    expect(html).toContain('Preview');
+    expect(html).toContain('Generate random fingerprint');
     expect(html).not.toContain('role="dialog"');
-    expect(html).not.toContain('User-Agent');
-    expect(html).not.toContain('WebGL Vendor');
   });
 
   it('marks unsupported modes and persistence fields as disabled', () => {

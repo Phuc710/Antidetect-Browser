@@ -1,20 +1,153 @@
+:root {
+  --sidebar-width: 220px;
+  --titlebar-height: 24px;
+  --topbar-height: 54px;
+  --statusbar-height: 0px;
+  --roxy-page: #ffffff;
+  --roxy-shell: #edf5fa;
+  --roxy-topbar: #f5f9fc;
+  --roxy-border: #d3dfe7;
+  --roxy-primary: #159cf4;
+  --roxy-text: #111820;
+  --roxy-text-secondary: #4f5d67;
+}
+
 .app-layout {
   display: flex;
+  width: 100vw;
+  height: 100vh;
   flex-direction: column;
-  height: 100%;
-  background-color: var(--color-bg-app);
+  overflow: hidden;
+  background: var(--roxy-shell);
+  color: var(--roxy-text);
 }
 
 .app-layout__main {
   display: flex;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
+}
+
+.app-layout__workspace {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
 }
 
 .app-layout__content {
   display: flex;
-  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
   flex: 1;
+  flex-direction: column;
   overflow: hidden;
-  background-color: var(--color-bg-content);
+  border: 1px solid var(--roxy-border);
+  border-radius: 4px 4px 0 0;
+  background: var(--roxy-page);
 }
+
+.workspace-topbar {
+  position: relative;
+  display: flex;
+  height: var(--topbar-height);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 16px;
+  background: var(--roxy-topbar);
+}
+
+.workspace-topbar__spacer {
+  flex: 1;
+}
+
+.workspace-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workspace-topbar button {
+  font: inherit;
+}
+
+.workspace-topbar__location,
+.workspace-topbar__icon-btn,
+.workspace-topbar__team {
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #bdcad3;
+  border-radius: 4px;
+  background: #ffffff;
+  color: var(--roxy-text);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.workspace-topbar__location {
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.workspace-topbar__location small {
+  color: var(--roxy-text-secondary);
+  font-size: 12px;
+}
+
+.workspace-topbar__icon-btn {
+  position: relative;
+  width: 30px;
+  padding: 0;
+}
+
+.workspace-topbar__icon-btn--badge span {
+  position: absolute;
+  top: -8px;
+  right: -7px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: #ef4e55;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.workspace-topbar__team {
+  gap: 8px;
+  padding: 0 8px 0 4px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.workspace-topbar__avatar {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 6px;
+  background: #111820;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.workspace-topbar__location:hover,
+.workspace-topbar__icon-btn:hover,
+.workspace-topbar__team:hover {
+  border-color: var(--roxy-primary);
+  background: #f4fbff;
+  color: var(--roxy-primary);
+}
+
+
