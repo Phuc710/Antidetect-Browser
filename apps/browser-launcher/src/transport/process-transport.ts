@@ -1,11 +1,15 @@
-import type { LauncherResponse, LauncherEvent } from 'shared';
-import { CommandValidator } from './command-validator.js';
+import type { LauncherCommand,LauncherEvent,LauncherResponse } from 'shared';
+
 import { serializeLauncherError } from '../errors/serialize-launcher-error.js';
+import { CommandValidator } from './command-validator.js';
 
 export class ProcessTransport {
   private readonly validator = new CommandValidator();
+  private readonly onCommand: (command: LauncherCommand) => Promise<void>;
 
-  constructor(private readonly onCommand: (command: any) => Promise<void>) {}
+  constructor(onCommand: (command: LauncherCommand) => Promise<void>) {
+    this.onCommand = onCommand;
+  }
 
   start() {
     process.on('message', async (message: unknown) => {

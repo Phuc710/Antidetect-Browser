@@ -1,43 +1,64 @@
-import { BrowserRuntimeDescriptor } from './browser-runtime-descriptor.js';
-import { ResolvedBrowserRuntime, BrowserExecutableResolver } from './browser-executable-resolver.js';
+import { BrowserExecutableResolver, type ResolvedBrowserRuntime } from './browser-executable-resolver.js';
+import type { BrowserRuntimeDescriptor } from './browser-runtime-descriptor.js';
 import { RuntimeCompatibilityChecker } from './runtime-compatibility-checker.js';
-import { RuntimeManifestReader } from './runtime-manifest-reader.js';
 import { BrowserRuntimeError } from './runtime-errors.js';
+import { type RuntimeManifest,RuntimeManifestReader } from './runtime-manifest-reader.js';
+
+type RegistryState =
+  | { readonly status: 'uninitialized' }
+  | {
+      readonly status: 'initialized';
+      readonly runtimeRoot: string;
+      readonly manifestPath: string;
+      readonly manifest: RuntimeManifest;
+    };
 
 export class BrowserRuntimeRegistry {
-  private runtimeRoot: string = '';
-  private manifestPath: string = '';
-  private initialized = false;
+  private state: RegistryState = { status: 'uninitialized' };
   private readonly manifestReader = new RuntimeManifestReader();
   private readonly compatibilityChecker = new RuntimeCompatibilityChecker();
 
-  initialize(runtimeRoot: string, manifestPath: string) {
-    this.runtimeRoot = runtimeRoot;
-    this.manifestPath = manifestPath;
-    this.initialized = true;
+  async initialize(runtimeRoot: string, manifestPath: string): Promise<void> {
+    const manifest = await this.manifestReader.read(manifestPath);
+    this.state = {
+      status: 'initialized',
+      runtimeRoot,
+      manifestPath,
+      manifest,
+    };
   }
 
-  resolveAndVerify(descriptor: BrowserRuntimeDescriptor): ResolvedBrowserRuntime {
-    if (!this.initialized) {
+  async reload(): Promise<void> {
+    if (this.state.status !== 'initialized') {
+      throw new Error('Cannot reload uninitialized BrowserRuntimeRegistry.');
+    }
+    const manifest = await this.manifestReader.read(this.state.manifestPath);
+    this.state = {
+      status: 'initialized',
+      runtimeRoot: this.state.runtimeRoot,
+      manifestPath: this.state.manifestPath,
+      manifest,
+    };
+  }
+
+  async resolveAndVerify(descriptor: BrowserRuntimeDescriptor): Promise<ResolvedBrowserRuntime> {
+    if (this.state.status !== 'initialized') {
       throw new Error('BrowserRuntimeRegistry has not been initialized yet.');
     }
 
-    // 1. Read and parse manifest
-    const manifest = this.manifestReader.read(this.manifestPath);
+    // 1. Resolve path using resolver
+    const resolver = new BrowserExecutableResolver(this.state.runtimeRoot, this.state.manifest);
+    const resolved = await resolver.resolve(descriptor);
 
-    // 2. Resolve path
-    const resolver = new BrowserExecutableResolver(this.runtimeRoot, manifest);
-    const resolved = resolver.resolve(descriptor);
-
-    // 3. Compatibility Check
-    const report = this.compatibilityChecker.check(resolved);
+    // 2. Compatibility Check
+    const report = await this.compatibilityChecker.check(resolved);
     if (!report.compatible) {
       const criticalIssue = report.issues.find((i) => i.severity === 'critical');
       const code = criticalIssue ? criticalIssue.code : 'PLATFORM_MISMATCH';
       throw new BrowserRuntimeError(
         code,
         criticalIssue?.message || 'Runtime compatibility check failed.',
-        { issues: report.issues } as any
+        { issues: report.issues }
       );
     }
 

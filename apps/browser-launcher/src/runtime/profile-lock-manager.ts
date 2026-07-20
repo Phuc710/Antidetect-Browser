@@ -1,6 +1,6 @@
-import { randomUUID } from 'crypto';
-import fs from 'fs';
-import { join } from 'path';
+import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import { join } from 'node:path';
 
 export interface LockfilePayload {
   schemaVersion: 1;
@@ -14,7 +14,7 @@ export interface LockfilePayload {
 }
 
 export class ProfileLockManager {
-  private readonly ownedLocks = new Map<string, { path: string; payload: LockfilePayload; timer: NodeJS.Timeout }>();
+  private readonly ownedLocks = new Map<string, { path: string; payload: LockfilePayload; timer: ReturnType<typeof setInterval> }>();
   private readonly instanceId: string;
   private readonly processId: number;
   private readonly heartbeatIntervalMs: number;
@@ -140,7 +140,7 @@ export class ProfileLockManager {
   }
 
   private isAlreadyExists(error: unknown): boolean {
-    return error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'EEXIST';
+    return error instanceof Error && 'code' in error && (error as { code?: string }).code === 'EEXIST';
   }
 
   shutdown(): void {

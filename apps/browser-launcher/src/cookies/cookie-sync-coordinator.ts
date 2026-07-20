@@ -1,9 +1,10 @@
-import crypto from 'crypto';
+import crypto from 'node:crypto';
+
 import type { BrowserSession } from '../runtime/session-registry.js';
 import type { ProcessTransport } from '../transport/process-transport.js';
 
 export class CookieSyncCoordinator {
-  private readonly intervals = new Map<string, NodeJS.Timeout>();
+  private readonly intervals = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly previousHashes = new Map<string, string>();
   private readonly activeSyncs = new Set<string>();
 

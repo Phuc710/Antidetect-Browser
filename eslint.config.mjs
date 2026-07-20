@@ -26,6 +26,7 @@ export default [
             'packages/fingerprint-injector/src/types/**/*.ts',
             'packages/shared/src/contracts/fingerprint-envelope.ts',
             'packages/shared/src/index.ts',
+            'apps/browser-launcher/src/**/*.ts',
         ],
         languageOptions: {
             parser: tsEslint.parser,
@@ -41,6 +42,7 @@ export default [
             'packages/fingerprint-injector/src/types/**/*.ts',
             'packages/shared/src/contracts/fingerprint-envelope.ts',
             'packages/shared/src/index.ts',
+            'apps/browser-launcher/src/**/*.ts',
         ],
         plugins: {
             '@typescript-eslint': tsEslint.plugin,
@@ -50,6 +52,8 @@ export default [
             'no-underscore-dangle': 0,
             'max-classes-per-file': 0,
             'no-console': 'warn',
+            'no-unused-vars': 0,
+            '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
         },
     },
 ];

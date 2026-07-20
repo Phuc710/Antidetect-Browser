@@ -1,6 +1,7 @@
-import type { ProfileRuntimeState, ProfileRuntimeSnapshot } from 'shared';
-import { PlaywrightRuntimeAdapter } from './playwright-runtime-adapter.js';
+import type { ProfileRuntimeSnapshot,ProfileRuntimeState } from 'shared';
+
 import { LauncherError } from '../errors/launcher-error.js';
+import { PlaywrightRuntimeAdapter } from './playwright-runtime-adapter.js';
 
 export interface BrowserSession {
   readonly sessionId: string;
@@ -66,9 +67,9 @@ export class SessionRegistry {
     return [...this.sessionsBySessionId.values()];
   }
 
-  snapshot(): ProfileRuntimeSnapshot[] {
+  createSnapshot(): { readonly sequence: number; readonly sessions: readonly ProfileRuntimeSnapshot[] } {
     const seq = this.snapshotSequence++;
-    return [...this.sessionsBySessionId.values()].map((s) => ({
+    const sessions = [...this.sessionsBySessionId.values()].map((s) => ({
       profileId: s.profileId,
       browserSessionId: s.sessionId,
       sequence: seq,
@@ -82,5 +83,10 @@ export class SessionRegistry {
       browserVersion: s.browserVersion,
       architecture: s.architecture,
     }));
+    return { sequence: seq, sessions };
+  }
+
+  snapshot(): ProfileRuntimeSnapshot[] {
+    return [...this.createSnapshot().sessions];
   }
 }

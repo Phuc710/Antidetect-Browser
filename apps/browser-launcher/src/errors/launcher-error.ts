@@ -1,4 +1,4 @@
-import type { LauncherErrorCode, SerializedLauncherError } from 'shared';
+import type { LauncherErrorCode } from 'shared';
 
 export class LauncherError extends Error {
   constructor(

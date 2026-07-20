@@ -1,8 +1,9 @@
-import type { BrowserSession, SessionRegistry } from './session-registry.js';
-import type { ProfileLockManager } from './profile-lock-manager.js';
+import type { ProfileRuntimeState } from 'shared';
+
 import type { CookieSyncCoordinator } from '../cookies/cookie-sync-coordinator.js';
 import type { ProcessTransport } from '../transport/process-transport.js';
-import type { ProfileRuntimeState } from 'shared';
+import type { ProfileLockManager } from './profile-lock-manager.js';
+import type { BrowserSession, SessionRegistry } from './session-registry.js';
 
 export type SessionTerminationReason =
   | 'user_stop'
@@ -53,12 +54,16 @@ export class SessionLifecycleManager {
     // 3. Stop playwritght runtime context & browser process
     try {
       await session.browserHandle.stop();
-    } catch {}
+    } catch {
+      // Ignored: browser handle might have already stopped
+    }
 
     // 4. Release lock files
     try {
       this.lockManager.releaseDurableLock(profileId, sessionId);
-    } catch {}
+    } catch {
+      // Ignored: lock might have already been released
+    }
 
     // 5. Remove registry session
     this.registry.remove(sessionId);

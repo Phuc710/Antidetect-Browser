@@ -1,6 +1,7 @@
 import type { Page } from 'playwright';
-import type { PlaywrightRuntimeAdapter } from './playwright-runtime-adapter.js';
+
 import type { BrowserLaunchPlan } from '../application/launch-plan-builder.js';
+import type { PlaywrightRuntimeAdapter } from './playwright-runtime-adapter.js';
 
 export interface ReadinessCheckResult {
   readonly id: string;
@@ -33,7 +34,9 @@ export class ReadinessChecker {
         try {
           process.kill(runtime.processHandle.pid, 0);
           isAlive = true;
-        } catch {}
+        } catch {
+          // Process not alive or no permission to check
+        }
         return { passed: isAlive, expected: true, actual: isAlive };
       }
     },
@@ -121,11 +124,11 @@ export class ReadinessChecker {
         userAgent: navigator.userAgent,
         platform: navigator.platform,
         language: navigator.language,
-        screenWidth: screen.width,
-        screenHeight: screen.height,
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height,
         injectedMarker: Reflect.get(window, '__fingerprintVersion'),
       }));
-    } catch (err) {
+    } catch {
       // If page evaluation fails, it will fail all evaluation checks
     } finally {
       await probe?.close().catch(() => undefined);

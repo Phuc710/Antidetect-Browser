@@ -1,10 +1,21 @@
-import { execFileSync } from 'child_process';
-import { BrowserRuntimeDescriptor } from './browser-runtime-descriptor.js';
-import { ResolvedBrowserRuntime } from './browser-executable-resolver.js';
-import { BrowserRuntimeError } from './runtime-errors.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+import type { ResolvedBrowserRuntime } from './browser-executable-resolver.js';
+import type { SupportedArchitecture, SupportedPlatform } from './runtime-manifest-reader.js';
+
+const execFileAsync = promisify(execFile);
+const VERSION_CHECK_TIMEOUT_MS = 2000;
+
+export type RuntimeCompatibilityCode =
+  | 'VERSION_MISMATCH'
+  | 'VERSION_UNDETECTABLE'
+  | 'VERSION_CHECK_TIMEOUT'
+  | 'EXECUTABLE_START_FAILED'
+  | 'ARCHITECTURE_MISMATCH';
 
 export interface RuntimeCompatibilityIssue {
-  readonly code: 'PLATFORM_MISMATCH' | 'ARCHITECTURE_MISMATCH' | 'VERSION_MISMATCH';
+  readonly code: RuntimeCompatibilityCode;
   readonly message: string;
   readonly severity: 'critical' | 'warning';
 }
@@ -12,41 +23,71 @@ export interface RuntimeCompatibilityIssue {
 export interface RuntimeCompatibilityReport {
   readonly compatible: boolean;
   readonly issues: RuntimeCompatibilityIssue[];
+  readonly actualVersion?: string;
+}
+
+export interface ArchitectureCompatibilityPolicy {
+  isCompatible(
+    host: SupportedArchitecture,
+    target: SupportedArchitecture,
+    platform: SupportedPlatform,
+  ): boolean;
+}
+
+export class StrictArchitectureCompatibilityPolicy implements ArchitectureCompatibilityPolicy {
+  isCompatible(
+    host: SupportedArchitecture,
+    target: SupportedArchitecture,
+    _platform: SupportedPlatform,
+  ): boolean {
+    return host === target;
+  }
 }
 
 export class RuntimeCompatibilityChecker {
-  check(resolved: ResolvedBrowserRuntime): RuntimeCompatibilityReport {
-    const issues: RuntimeCompatibilityIssue[] = [];
+  constructor(
+    private readonly archPolicy: ArchitectureCompatibilityPolicy = new StrictArchitectureCompatibilityPolicy()
+  ) {}
 
-    // 1. Verify Architecture Mismatch
-    const hostArch = process.arch; // 'x64' | 'arm64'
+  async check(resolved: ResolvedBrowserRuntime): Promise<RuntimeCompatibilityReport> {
+    const issues: RuntimeCompatibilityIssue[] = [];
+    let actualVersion: string | undefined;
+
+    let hostArch: SupportedArchitecture = 'x64';
+    if (process.arch === 'arm64') {
+      hostArch = 'arm64';
+    }
     const targetArch = resolved.descriptor.architecture;
 
-    if (hostArch === 'x64' && targetArch === 'arm64') {
+    let platform: SupportedPlatform = 'linux';
+    if (process.platform === 'win32') {
+      platform = 'win32';
+    } else if (process.platform === 'darwin') {
+      platform = 'darwin';
+    }
+
+    if (!this.archPolicy.isCompatible(hostArch, targetArch, platform)) {
       issues.push({
         code: 'ARCHITECTURE_MISMATCH',
-        message: `Cannot run arm64 executable on host architecture: ${hostArch}`,
+        message: `Incompatible target architecture "${targetArch}" for host architecture "${hostArch}" on platform "${platform}".`,
         severity: 'critical',
       });
     }
 
-    // 2. Detect actual version where practical
+    // 2. Detect actual version
     try {
-      // In Windows, chrome --product-version outputs clean version e.g. "120.0.6099.71"
-      // In Mac/Linux, chrome --version outputs e.g. "Google Chrome 120.0.6099.71"
       const args = process.platform === 'win32' ? ['--product-version'] : ['--version'];
-      const rawStdout = execFileSync(resolved.executablePath, args, {
-        encoding: 'utf8',
-        timeout: 2000,
-        stdio: ['ignore', 'pipe', 'ignore'],
+      
+      const { stdout } = await execFileAsync(resolved.executablePath, args, {
+        timeout: VERSION_CHECK_TIMEOUT_MS,
+        windowsHide: true,
       });
 
-      const match = rawStdout.match(/\b\d+\.\d+\.\d+(\.\d+)?\b/);
+      const match = stdout.match(/\b\d+\.\d+\.\d+(\.\d+)?\b/);
       if (match) {
-        const actualVersion = match[0];
+        actualVersion = match[0];
         const expectedVersion = resolved.descriptor.browserVersion;
-        
-        // Match major versions
+
         const actualMajor = actualVersion.split('.')[0];
         const expectedMajor = expectedVersion.split('.')[0];
 
@@ -57,14 +98,32 @@ export class RuntimeCompatibilityChecker {
             severity: 'critical',
           });
         }
+      } else {
+        issues.push({
+          code: 'VERSION_UNDETECTABLE',
+          message: `Could not parse version from output: "${stdout.trim()}"`,
+          severity: 'warning',
+        });
       }
-    } catch {
-      // If version check fails (e.g. running binary throws/timeout), add warning
-      issues.push({
-        code: 'VERSION_MISMATCH',
-        message: 'Could not verify actual browser executable version.',
-        severity: 'warning',
-      });
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      // Distinguish timeout vs process failure
+      const isTimeout =
+        (err && typeof err === 'object' && (('code' in err && (err as any).code === 'ETIMEDOUT') || ('signal' in err && (err as any).signal === 'SIGTERM')));
+
+      if (isTimeout) {
+        issues.push({
+          code: 'VERSION_CHECK_TIMEOUT',
+          message: `Version verification command timed out after ${VERSION_CHECK_TIMEOUT_MS}ms.`,
+          severity: 'warning',
+        });
+      } else {
+        issues.push({
+          code: 'EXECUTABLE_START_FAILED',
+          message: `Failed to execute binary for version check: ${errorMsg}`,
+          severity: 'warning',
+        });
+      }
     }
 
     const compatible = !issues.some((issue) => issue.severity === 'critical');
@@ -72,6 +131,7 @@ export class RuntimeCompatibilityChecker {
     return {
       compatible,
       issues,
+      actualVersion,
     };
   }
 }

@@ -1,16 +1,17 @@
 import type { LaunchProfilePayload } from 'shared';
-import { LaunchPlanBuilder, type BrowserLaunchPlan } from './launch-plan-builder.js';
-import { PlaywrightProcessLauncher, type BrowserProcessHandle } from '../runtime/playwright-process-launcher.js';
-import { PlaywrightRuntimeAdapter } from '../runtime/playwright-runtime-adapter.js';
-import { SessionRegistry, type BrowserSession } from '../runtime/session-registry.js';
-import { ProfileLockManager } from '../runtime/profile-lock-manager.js';
-import { SessionLifecycleManager } from '../runtime/session-lifecycle-manager.js';
+
 import { CookieSyncCoordinator } from '../cookies/cookie-sync-coordinator.js';
-import { ReadinessChecker } from '../runtime/readiness-checker.js';
-import { FingerprintService } from '../fingerprint/fingerprint-service.js';
 import { LauncherError } from '../errors/launcher-error.js';
-import type { ProcessTransport } from '../transport/process-transport.js';
+import { FingerprintService } from '../fingerprint/fingerprint-service.js';
+import { type BrowserProcessHandle,PlaywrightProcessLauncher } from '../runtime/playwright-process-launcher.js';
+import { PlaywrightRuntimeAdapter } from '../runtime/playwright-runtime-adapter.js';
+import { ProfileLockManager } from '../runtime/profile-lock-manager.js';
+import { ReadinessChecker } from '../runtime/readiness-checker.js';
+import { SessionLifecycleManager } from '../runtime/session-lifecycle-manager.js';
+import { type BrowserSession,SessionRegistry } from '../runtime/session-registry.js';
 import { BrowserRuntimeRegistry } from '../runtime-compatibility/browser-runtime-registry.js';
+import type { ProcessTransport } from '../transport/process-transport.js';
+import { type BrowserLaunchPlan,LaunchPlanBuilder } from './launch-plan-builder.js';
 
 export class LaunchCleanupScope {
   private lockAcquired = false;
@@ -43,7 +44,9 @@ export class LaunchCleanupScope {
     if (this.lockAcquired) {
       try {
         this.lockManager.releaseDurableLock(this.identity.profileId, this.identity.sessionId);
-      } catch {}
+      } catch {
+        // Ignore lock release failures during cleanup
+      }
     }
   }
 }
@@ -77,7 +80,7 @@ export class BrowserLaunchOrchestrator {
       }
 
       // 2. Resolve runtime & compatibility check (before lock acquisition)
-      const resolvedRuntime = this.runtimeRegistry.resolveAndVerify({
+      const resolvedRuntime = await this.runtimeRegistry.resolveAndVerify({
         engine: plan.runtime.engine,
         distribution: plan.runtime.distribution,
         channel: plan.runtime.channel,

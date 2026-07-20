@@ -1,12 +1,11 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { CommandValidator } from '../transport/command-validator.js';
+import { beforeEach,describe, expect, it, vi } from 'vitest';
+
 import { LaunchPlanBuilder } from '../application/launch-plan-builder.js';
-import { CookieValidator } from '../cookies/cookie-validator.js';
-import { SessionRegistry, type BrowserSession } from '../runtime/session-registry.js';
 import { CookieSyncCoordinator } from '../cookies/cookie-sync-coordinator.js';
-import { ReadinessChecker } from '../runtime/readiness-checker.js';
-import { PlaywrightRuntimeAdapter } from '../runtime/playwright-runtime-adapter.js';
+import { CookieValidator } from '../cookies/cookie-validator.js';
 import { FingerprintService } from '../fingerprint/fingerprint-service.js';
+import { type BrowserSession,SessionRegistry } from '../runtime/session-registry.js';
+import { CommandValidator } from '../transport/command-validator.js';
 
 describe('Browser Launcher Refactored Pipeline - Unit Tests', () => {
   describe('Command Validation', () => {

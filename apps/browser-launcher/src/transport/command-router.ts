@@ -1,10 +1,11 @@
 import type { LauncherCommand } from 'shared';
+
 import { BrowserLaunchOrchestrator } from '../application/browser-launch-orchestrator.js';
 import { BrowserStopOrchestrator } from '../application/browser-stop-orchestrator.js';
 import { ShutdownOrchestrator } from '../application/shutdown-orchestrator.js';
 import { SessionRegistry } from '../runtime/session-registry.js';
-import type { ProcessTransport } from './process-transport.js';
 import { BrowserRuntimeRegistry } from '../runtime-compatibility/browser-runtime-registry.js';
+import type { ProcessTransport } from './process-transport.js';
 
 export class CommandRouter {
   private isInitialized = false;
@@ -23,12 +24,11 @@ export class CommandRouter {
 
     switch (type) {
       case 'launcher:initialize': {
-        this.isInitialized = true;
-        
         const root = cmd.payload.runtimesRoot || process.env.BROWSER_RUNTIMES_ROOT || './runtimes';
         const manifest = cmd.payload.runtimesManifest || process.env.BROWSER_RUNTIMES_MANIFEST || './runtimes.json';
-        this.runtimeRegistry.initialize(root, manifest);
-
+        await this.runtimeRegistry.initialize(root, manifest);
+        
+        this.isInitialized = true;
         this.transport.sendSuccess(requestId);
         break;
       }
@@ -52,10 +52,11 @@ export class CommandRouter {
       }
 
       case 'runtime:snapshot': {
+        const { sequence, sessions } = this.registry.createSnapshot();
         this.transport.sendSuccess(requestId, {
-          snapshotSequence: 1,
+          snapshotSequence: sequence,
           capturedAt: new Date().toISOString(),
-          sessions: this.registry.snapshot(),
+          sessions,
         });
         break;
       }

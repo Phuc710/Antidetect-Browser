@@ -1,4 +1,5 @@
 import type { SerializedLauncherError } from 'shared';
+
 import { LauncherError } from './launcher-error.js';
 
 export function serializeLauncherError(err: unknown): SerializedLauncherError {

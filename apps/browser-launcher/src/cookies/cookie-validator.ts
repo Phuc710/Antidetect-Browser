@@ -59,9 +59,9 @@ export class CookieValidator {
       }
 
       const rawCookie = item as Record<string, unknown>;
-      const name = rawCookie['name'];
-      const value = rawCookie['value'];
-      const domain = rawCookie['domain'];
+      const {name} = rawCookie;
+      const {value} = rawCookie;
+      const {domain} = rawCookie;
 
       if (typeof name !== 'string' || !name) {
         issues.push({
@@ -97,25 +97,25 @@ export class CookieValidator {
         domain: domain as string,
       };
 
-      const path = rawCookie['path'];
+      const {path} = rawCookie;
       if (path !== undefined) {
         if (typeof path === 'string') cookie.path = path;
         else issues.push({ path: `[${index}].path`, name: cookie.name, message: 'path must be a string.' });
       }
 
-      const secure = rawCookie['secure'];
+      const {secure} = rawCookie;
       if (secure !== undefined) {
         if (typeof secure === 'boolean') cookie.secure = secure;
         else issues.push({ path: `[${index}].secure`, name: cookie.name, message: 'secure must be a boolean.' });
       }
 
-      const httpOnly = rawCookie['httpOnly'];
+      const {httpOnly} = rawCookie;
       if (httpOnly !== undefined) {
         if (typeof httpOnly === 'boolean') cookie.httpOnly = httpOnly;
         else issues.push({ path: `[${index}].httpOnly`, name: cookie.name, message: 'httpOnly must be a boolean.' });
       }
 
-      const sameSite = rawCookie['sameSite'];
+      const {sameSite} = rawCookie;
       if (sameSite !== undefined) {
         if (['Lax', 'Strict', 'None'].includes(sameSite as string)) {
           cookie.sameSite = sameSite as any;
@@ -124,7 +124,7 @@ export class CookieValidator {
         }
       }
 
-      const expires = rawCookie['expires'];
+      const {expires} = rawCookie;
       if (expires !== undefined) {
         if (typeof expires === 'number') cookie.expires = expires;
         else issues.push({ path: `[${index}].expires`, name: cookie.name, message: 'expires must be a number.' });

@@ -1,7 +1,8 @@
-import type { Browser, BrowserContext } from 'playwright';
 import type { BrowserFingerprintWithHeaders } from 'fingerprint-generator';
-import type { BrowserProcessHandle } from './playwright-process-launcher.js';
+import type { Browser, BrowserContext } from 'playwright';
+
 import { FingerprintService } from '../fingerprint/fingerprint-service.js';
+import type { BrowserProcessHandle } from './playwright-process-launcher.js';
 
 export class PlaywrightRuntimeAdapter {
   private stopped = false;

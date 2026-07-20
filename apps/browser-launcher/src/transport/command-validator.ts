@@ -21,8 +21,8 @@ export class CommandValidator {
     }
 
     const raw = message as Record<string, unknown>;
-    const type = raw['type'];
-    const requestId = raw['requestId'];
+    const {type} = raw;
+    const {requestId} = raw;
 
     if (typeof type !== 'string') {
       issues.push({ path: 'type', message: 'Command type must be a string.' });
@@ -40,23 +40,23 @@ export class CommandValidator {
 
     switch (commandType) {
       case 'launcher:initialize': {
-        const payload = raw['payload'] as Record<string, unknown> | undefined;
+        const payload = raw.payload as Record<string, unknown> | undefined;
         if (!payload || typeof payload !== 'object') {
           issues.push({ path: 'payload', message: 'Initialize payload must be an object.' });
         } else {
-          const mode = payload['applicationMode'];
-          const deviceId = payload['deviceId'];
+          const mode = payload.applicationMode;
+          const {deviceId} = payload;
           if (typeof mode !== 'string' || !['production', 'development', 'test', 'integration_test'].includes(mode)) {
             issues.push({ path: 'payload.applicationMode', message: 'Invalid or missing applicationMode.' });
           }
           if (typeof deviceId !== 'string' || !deviceId) {
             issues.push({ path: 'payload.deviceId', message: 'Invalid or missing deviceId.' });
           }
-          const runtimesRoot = payload['runtimesRoot'];
+          const {runtimesRoot} = payload;
           if (runtimesRoot !== undefined && typeof runtimesRoot !== 'string') {
             issues.push({ path: 'payload.runtimesRoot', message: 'runtimesRoot must be a string.' });
           }
-          const runtimesManifest = payload['runtimesManifest'];
+          const {runtimesManifest} = payload;
           if (runtimesManifest !== undefined && typeof runtimesManifest !== 'string') {
             issues.push({ path: 'payload.runtimesManifest', message: 'runtimesManifest must be a string.' });
           }
@@ -65,7 +65,7 @@ export class CommandValidator {
       }
 
       case 'profile:launch': {
-        const payload = raw['payload'] as Record<string, unknown> | undefined;
+        const payload = raw.payload as Record<string, unknown> | undefined;
         if (!payload || typeof payload !== 'object') {
           issues.push({ path: 'payload', message: 'Launch payload must be an object.' });
         } else {
@@ -85,42 +85,42 @@ export class CommandValidator {
               issues.push({ path: `payload.${field}`, message: `Field ${field} is required and must be a non-empty string.` });
             }
           }
-          if (typeof payload['headless'] !== 'boolean') {
+          if (typeof payload.headless !== 'boolean') {
             issues.push({ path: 'payload.headless', message: 'headless must be a boolean.' });
           }
           
-          const prepared = payload['preparedFingerprint'] as Record<string, unknown> | undefined;
+          const prepared = payload.preparedFingerprint as Record<string, unknown> | undefined;
           if (!prepared || typeof prepared !== 'object') {
             issues.push({ path: 'payload.preparedFingerprint', message: 'preparedFingerprint must be an object.' });
           } else {
-            if (!prepared['fingerprintWithHeaders'] || typeof prepared['fingerprintWithHeaders'] !== 'object') {
+            if (!prepared.fingerprintWithHeaders || typeof prepared.fingerprintWithHeaders !== 'object') {
               issues.push({ path: 'payload.preparedFingerprint.fingerprintWithHeaders', message: 'fingerprintWithHeaders is required and must be an object.' });
             }
-            if (typeof prepared['markerScript'] !== 'string') {
+            if (typeof prepared.markerScript !== 'string') {
               issues.push({ path: 'payload.preparedFingerprint.markerScript', message: 'markerScript is required and must be a string.' });
             }
-            if (!prepared['readiness'] || typeof prepared['readiness'] !== 'object') {
+            if (!prepared.readiness || typeof prepared.readiness !== 'object') {
               issues.push({ path: 'payload.preparedFingerprint.readiness', message: 'readiness expectation is required and must be an object.' });
             }
           }
 
           // Optional fields
-          const proxy = payload['proxy'] as Record<string, unknown> | undefined;
+          const proxy = payload.proxy as Record<string, unknown> | undefined;
           if (proxy !== undefined && (proxy === null || typeof proxy !== 'object')) {
             issues.push({ path: 'payload.proxy', message: 'proxy must be an object if specified.' });
           } else if (proxy) {
-            if (typeof proxy['server'] !== 'string' || !proxy['server']) {
+            if (typeof proxy.server !== 'string' || !proxy.server) {
               issues.push({ path: 'payload.proxy.server', message: 'proxy server endpoint must be a non-empty string.' });
             }
-            if (proxy['username'] !== undefined && typeof proxy['username'] !== 'string') {
+            if (proxy.username !== undefined && typeof proxy.username !== 'string') {
               issues.push({ path: 'payload.proxy.username', message: 'proxy username must be a string.' });
             }
-            if (proxy['password'] !== undefined && typeof proxy['password'] !== 'string') {
+            if (proxy.password !== undefined && typeof proxy.password !== 'string') {
               issues.push({ path: 'payload.proxy.password', message: 'proxy password must be a string.' });
             }
           }
 
-          const cookies = payload['cookies'];
+          const {cookies} = payload;
           if (cookies !== undefined && cookies !== null && typeof cookies !== 'string') {
             issues.push({ path: 'payload.cookies', message: 'cookies must be a JSON string if specified.' });
           }
@@ -129,14 +129,12 @@ export class CommandValidator {
       }
 
       case 'profile:stop': {
-        const payload = raw['payload'] as Record<string, unknown> | undefined;
+        const payload = raw.payload as Record<string, unknown> | undefined;
         if (!payload || typeof payload !== 'object') {
           issues.push({ path: 'payload', message: 'Stop payload must be an object.' });
-        } else {
-          if (typeof payload['sessionId'] !== 'string' || !payload['sessionId']) {
+        } else if (typeof payload.sessionId !== 'string' || !payload.sessionId) {
             issues.push({ path: 'payload.sessionId', message: 'sessionId must be a non-empty string.' });
           }
-        }
         break;
       }
 

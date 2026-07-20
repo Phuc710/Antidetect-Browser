@@ -5,7 +5,11 @@ export type RuntimeErrorCode =
   | 'PATH_TRAVERSAL_DETECTED'
   | 'PLATFORM_MISMATCH'
   | 'ARCHITECTURE_MISMATCH'
-  | 'VERSION_MISMATCH';
+  | 'VERSION_MISMATCH'
+  | 'VERSION_UNDETECTABLE'
+  | 'VERSION_CHECK_TIMEOUT'
+  | 'EXECUTABLE_START_FAILED'
+  | 'EXECUTABLE_INVALID';
 
 export class BrowserRuntimeError extends Error {
   constructor(

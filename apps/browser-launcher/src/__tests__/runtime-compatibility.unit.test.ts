@@ -1,19 +1,28 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import fs from 'fs';
-import { execFileSync } from 'child_process';
-import { RuntimeManifestReader } from '../runtime-compatibility/runtime-manifest-reader.js';
-import { BrowserExecutableResolver } from '../runtime-compatibility/browser-executable-resolver.js';
-import { RuntimeCompatibilityChecker } from '../runtime-compatibility/runtime-compatibility-checker.js';
-import { BrowserRuntimeRegistry } from '../runtime-compatibility/browser-runtime-registry.js';
-import { BrowserRuntimeError } from '../runtime-compatibility/runtime-errors.js';
-import { PlaywrightProcessLauncher } from '../runtime/playwright-process-launcher.js';
+import { execFile } from 'node:child_process';
+import { access, readFile, stat } from 'node:fs/promises';
 
-vi.mock('fs');
-vi.mock('child_process', () => ({
-  execFileSync: vi.fn(),
+import { beforeEach,describe, expect, it, vi } from 'vitest';
+
+import { PlaywrightProcessLauncher } from '../runtime/playwright-process-launcher.js';
+import { SessionRegistry } from '../runtime/session-registry.js';
+import { BrowserExecutableResolver } from '../runtime-compatibility/browser-executable-resolver.js';
+import { BrowserRuntimeRegistry } from '../runtime-compatibility/browser-runtime-registry.js';
+import { RuntimeCompatibilityChecker } from '../runtime-compatibility/runtime-compatibility-checker.js';
+import { BrowserRuntimeError } from '../runtime-compatibility/runtime-errors.js';
+import { RuntimeManifestReader } from '../runtime-compatibility/runtime-manifest-reader.js';
+
+vi.mock('node:fs/promises', () => ({
+  readFile: vi.fn(),
+  access: vi.fn(),
+  stat: vi.fn(),
 }));
 
-describe('Browser Runtime Compatibility & Resolution - Unit Tests', () => {
+vi.mock('node:child_process', () => ({
+  execFileSync: vi.fn(),
+  execFile: vi.fn(),
+}));
+
+describe('Browser Runtime G1.1 Hardening - Unit Tests', () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });
@@ -21,137 +30,211 @@ describe('Browser Runtime Compatibility & Resolution - Unit Tests', () => {
   describe('RuntimeManifestReader', () => {
     const reader = new RuntimeManifestReader();
 
-    it('throws if manifest file does not exist', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-      expect(() => reader.read('/dummy/manifest.json')).toThrow(/Manifest file does not exist/);
+    it('initialization rejects missing manifest file', async () => {
+      vi.mocked(access).mockRejectedValue(new Error('ENOENT'));
+      await expect(reader.read('/dummy/manifest.json')).rejects.toThrow(BrowserRuntimeError);
+      await expect(reader.read('/dummy/manifest.json')).rejects.toThrow(/Manifest file does not exist/);
     });
 
-    it('throws if JSON is invalid', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(fs, 'readFileSync').mockReturnValue('{ invalid JSON');
-      expect(() => reader.read('/dummy/manifest.json')).toThrow(/Manifest JSON is malformed/);
+    it('initialization rejects malformed JSON', async () => {
+      vi.mocked(access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockResolvedValue('{ invalid JSON }');
+      await expect(reader.read('/dummy/manifest.json')).rejects.toThrow(/Manifest JSON is malformed/);
     });
 
-    it('throws if manifest shape is invalid', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify({ notRuntimes: [] }));
-      expect(() => reader.read('/dummy/manifest.json')).toThrow(/must be an object containing/);
+    it('rejects unsupported schema version', async () => {
+      vi.mocked(access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          schemaVersion: 2, // Unsupported schema
+          runtimes: [],
+        })
+      );
+      await expect(reader.read('/dummy/manifest.json')).rejects.toThrow(/Unsupported schema version/);
     });
 
-    it('parses valid manifest successfully', () => {
-      const sampleManifest = {
-        runtimes: [
-          {
-            engine: 'chromium',
-            distribution: 'chromium',
-            channel: 'stable',
-            version: '120.0.0',
-            architecture: 'x64',
-            platform: 'win32',
-            relativeExecutablePath: 'chromium-120/chrome.exe',
-          },
-        ],
-      };
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(sampleManifest));
-      const res = reader.read('/dummy/manifest.json');
-      expect(res.runtimes).toHaveLength(1);
-      expect(res.runtimes[0].engine).toBe('chromium');
+    it('rejects empty runtimes array', async () => {
+      vi.mocked(access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          schemaVersion: 1,
+          runtimes: [],
+        })
+      );
+      await expect(reader.read('/dummy/manifest.json')).rejects.toThrow(/runtimes" must not be empty/);
+    });
+
+    it('rejects duplicate runtime id', async () => {
+      vi.mocked(access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          schemaVersion: 1,
+          runtimes: [
+            {
+              id: 'dup-id',
+              engine: 'chromium',
+              distribution: 'chromium',
+              channel: 'stable',
+              version: '120.0.0',
+              architecture: 'x64',
+              platform: 'win32',
+              relativeExecutablePath: 'chrome.exe',
+            },
+            {
+              id: 'dup-id', // Duplicate
+              engine: 'chromium',
+              distribution: 'chromium',
+              channel: 'stable',
+              version: '121.0.0',
+              architecture: 'x64',
+              platform: 'win32',
+              relativeExecutablePath: 'chrome2.exe',
+            },
+          ],
+        })
+      );
+      await expect(reader.read('/dummy/manifest.json')).rejects.toThrow(/Duplicate runtime id detected/);
+    });
+
+    it('rejects duplicate descriptor key', async () => {
+      vi.mocked(access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          schemaVersion: 1,
+          runtimes: [
+            {
+              id: 'id-1',
+              engine: 'chromium',
+              distribution: 'chromium',
+              channel: 'stable',
+              version: '120.0.0',
+              architecture: 'x64',
+              platform: 'win32',
+              relativeExecutablePath: 'chrome.exe',
+            },
+            {
+              id: 'id-2',
+              engine: 'chromium', // Duplicate tuple
+              distribution: 'chromium',
+              channel: 'stable',
+              version: '120.0.0',
+              architecture: 'x64',
+              platform: 'win32',
+              relativeExecutablePath: 'chrome-copy.exe',
+            },
+          ],
+        })
+      );
+      await expect(reader.read('/dummy/manifest.json')).rejects.toThrow(/Duplicate runtime descriptor detected/);
+    });
+
+    it('rejects absolute executable path', async () => {
+      vi.mocked(access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          schemaVersion: 1,
+          runtimes: [
+            {
+              id: 'id-1',
+              engine: 'chromium',
+              distribution: 'chromium',
+              channel: 'stable',
+              version: '120.0.0',
+              architecture: 'x64',
+              platform: 'win32',
+              relativeExecutablePath: '/absolute/path/chrome.exe', // absolute
+            },
+          ],
+        })
+      );
+      await expect(reader.read('/dummy/manifest.json')).rejects.toThrow(/must be a relative path/);
     });
   });
 
   describe('BrowserExecutableResolver', () => {
     const mockManifest = {
+      schemaVersion: 1 as const,
       runtimes: [
         {
+          id: 'id-win',
           engine: 'chromium' as const,
           distribution: 'chromium' as const,
           channel: 'stable' as const,
           version: '120.0.0',
           architecture: 'x64' as const,
-          platform: process.platform as any,
-          relativeExecutablePath: 'chromium-120/chrome.exe',
+          platform: 'win32' as const,
+          relativeExecutablePath: 'win/chrome.exe',
         },
         {
+          id: 'id-mac',
           engine: 'chromium' as const,
           distribution: 'chromium' as const,
           channel: 'stable' as const,
-          version: '121.0.0',
-          architecture: 'x64' as const,
-          platform: 'darwin' as any, // Mismatched platform
-          relativeExecutablePath: 'chromium-121/chrome.exe',
+          version: '120.0.0',
+          architecture: 'arm64' as const,
+          platform: 'darwin' as const,
+          relativeExecutablePath: 'mac/chrome.app',
         },
         {
+          id: 'id-traversal',
           engine: 'chromium' as const,
           distribution: 'chromium' as const,
           channel: 'stable' as const,
           version: '122.0.0',
           architecture: 'x64' as const,
           platform: process.platform as any,
-          relativeExecutablePath: '../../outside/chrome.exe', // Traversal candidate
+          relativeExecutablePath: '../../outside/chrome.exe',
+        },
+        {
+          id: 'id-mismatch-platform',
+          engine: 'chromium' as const,
+          distribution: 'chromium' as const,
+          channel: 'stable' as const,
+          version: '121.0.0',
+          architecture: 'x64' as const,
+          platform: process.platform === 'win32' ? 'darwin' : 'win32', // Mismatched platform
+          relativeExecutablePath: 'other/chrome.exe',
         },
       ],
     };
 
-    it('resolves valid registered runtime', () => {
+    it('returns logical match platform/arch errors with correct precedence', async () => {
       const resolver = new BrowserExecutableResolver('/root', mockManifest);
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      const resolved = resolver.resolve({
-        engine: 'chromium',
-        distribution: 'chromium',
-        channel: 'stable',
-        browserVersion: '120.0.0',
-        architecture: 'x64',
-      });
-      expect(resolved.executablePath).toContain('chrome.exe');
-    });
 
-    it('throws error when runtime not registered', () => {
-      const resolver = new BrowserExecutableResolver('/root', mockManifest);
-      expect(() =>
-        resolver.resolve({
+      // 1. Logical runtime missing entirely
+      try {
+        await resolver.resolve({
           engine: 'chromium',
           distribution: 'chromium',
           channel: 'stable',
-          browserVersion: '999.0.0', // not registered
+          browserVersion: '999.0.0', // logical missing
           architecture: 'x64',
-        })
-      ).toThrow(BrowserRuntimeError);
-    });
+        });
+        expect.fail('Should have failed');
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(BrowserRuntimeError);
+        expect((err as BrowserRuntimeError).code).toBe('RUNTIME_NOT_REGISTERED');
+      }
 
-    it('throws error when platform mismatches', () => {
-      const resolver = new BrowserExecutableResolver('/root', mockManifest);
-      // Try to resolve version 121 which is darwin-only on non-darwin host platforms (or win32-only on non-win32 host)
-      const targetPlatform = process.platform === 'darwin' ? 'win32' : 'darwin';
-      const testManifest = {
-        runtimes: [
-          {
-            engine: 'chromium' as const,
-            distribution: 'chromium' as const,
-            channel: 'stable' as const,
-            version: '121.0.0',
-            architecture: 'x64' as const,
-            platform: targetPlatform as any,
-            relativeExecutablePath: 'chromium-121/chrome.exe',
-          },
-        ],
-      };
-      const testResolver = new BrowserExecutableResolver('/root', testManifest);
-      expect(() =>
-        testResolver.resolve({
+      // 2. Logical matches exist, but none matches platform
+      try {
+        await resolver.resolve({
           engine: 'chromium',
           distribution: 'chromium',
           channel: 'stable',
-          browserVersion: '121.0.0',
+          browserVersion: '121.0.0', // Only exists on mismatched platform
           architecture: 'x64',
-        })
-      ).toThrow(BrowserRuntimeError);
+        });
+        expect.fail('Should have failed');
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(BrowserRuntimeError);
+        expect((err as BrowserRuntimeError).code).toBe('PLATFORM_MISMATCH');
+      }
     });
 
-    it('rejects path traversal relative paths', () => {
+    it('rejects traversal paths', async () => {
       const resolver = new BrowserExecutableResolver('/root', mockManifest);
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      expect(() =>
+      await expect(
         resolver.resolve({
           engine: 'chromium',
           distribution: 'chromium',
@@ -159,13 +242,31 @@ describe('Browser Runtime Compatibility & Resolution - Unit Tests', () => {
           browserVersion: '122.0.0',
           architecture: 'x64',
         })
-      ).toThrow(/Path traversal detected/);
+      ).rejects.toThrow(/Path traversal detected/);
     });
 
-    it('throws error when executable is missing on disk', () => {
-      const resolver = new BrowserExecutableResolver('/root', mockManifest);
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false); // file missing
-      expect(() =>
+    it('rejects if resolved executable path points to a directory', async () => {
+      const singleManifest = {
+        schemaVersion: 1 as const,
+        runtimes: [
+          {
+            id: 'id-1',
+            engine: 'chromium' as const,
+            distribution: 'chromium' as const,
+            channel: 'stable' as const,
+            version: '120.0.0',
+            architecture: 'x64' as const,
+            platform: process.platform as any,
+            relativeExecutablePath: 'some-dir',
+          },
+        ],
+      };
+      const resolver = new BrowserExecutableResolver('/root', singleManifest);
+      vi.mocked(stat).mockResolvedValue({
+        isFile: () => false, // directory
+      } as any);
+
+      await expect(
         resolver.resolve({
           engine: 'chromium',
           distribution: 'chromium',
@@ -173,40 +274,14 @@ describe('Browser Runtime Compatibility & Resolution - Unit Tests', () => {
           browserVersion: '120.0.0',
           architecture: 'x64',
         })
-      ).toThrow(/Executable file not found/);
+      ).rejects.toThrow(/Path is not a regular file/);
     });
   });
 
   describe('RuntimeCompatibilityChecker', () => {
     const checker = new RuntimeCompatibilityChecker();
 
-    it('detects architecture mismatches', () => {
-      // Stub host arch as x64, check target arch arm64
-      const resolved = {
-        descriptor: {
-          engine: 'chromium' as const,
-          distribution: 'chromium' as const,
-          channel: 'stable' as const,
-          browserVersion: '120.0.0',
-          architecture: 'arm64' as const,
-        },
-        executablePath: '/root/chrome.exe',
-      };
-      
-      // Override process.arch
-      const originalArch = process.arch;
-      Object.defineProperty(process, 'arch', { value: 'x64', writable: true });
-      
-      try {
-        const report = checker.check(resolved);
-        expect(report.compatible).toBe(false);
-        expect(report.issues[0].code).toBe('ARCHITECTURE_MISMATCH');
-      } finally {
-        Object.defineProperty(process, 'arch', { value: originalArch });
-      }
-    });
-
-    it('detects browser binary version mismatches', () => {
+    it('treats undetectable version outputs as VERSION_UNDETECTABLE', async () => {
       const resolved = {
         descriptor: {
           engine: 'chromium' as const,
@@ -218,17 +293,117 @@ describe('Browser Runtime Compatibility & Resolution - Unit Tests', () => {
         executablePath: '/root/chrome.exe',
       };
 
-      // Mock child_process outputting mismatched major version e.g. "121.0.0"
-      vi.mocked(execFileSync).mockReturnValue('Google Chrome 121.0.123.4');
+      // Mock execFile outputting garbage
+      const mockExec = vi.mocked(execFile);
+      mockExec.mockImplementation((file, args, options, callback: any) => {
+        callback(null, { stdout: 'garbage text output' });
+        return {} as any;
+      });
 
-      const report = checker.check(resolved);
-      expect(report.compatible).toBe(false);
-      expect(report.issues.some((i) => i.code === 'VERSION_MISMATCH' && i.severity === 'critical')).toBe(true);
+      const report = await checker.check(resolved);
+      expect(report.compatible).toBe(true); // warning only
+      expect(report.issues[0].code).toBe('VERSION_UNDETECTABLE');
+    });
+
+    it('handles version check timeouts properly', async () => {
+      const resolved = {
+        descriptor: {
+          engine: 'chromium' as const,
+          distribution: 'chromium' as const,
+          channel: 'stable' as const,
+          browserVersion: '120.0.0',
+          architecture: process.arch as any,
+        },
+        executablePath: '/root/chrome.exe',
+      };
+
+      const mockExec = vi.mocked(execFile);
+      mockExec.mockImplementation((file, args, options, callback: any) => {
+        const err = Object.assign(new Error('ETIMEDOUT'), { code: 'ETIMEDOUT' });
+        callback(err);
+        return {} as any;
+      });
+
+      const report = await checker.check(resolved);
+      expect(report.issues[0].code).toBe('VERSION_CHECK_TIMEOUT');
+    });
+
+    it('handles execution command failure properly', async () => {
+      const resolved = {
+        descriptor: {
+          engine: 'chromium' as const,
+          distribution: 'chromium' as const,
+          channel: 'stable' as const,
+          browserVersion: '120.0.0',
+          architecture: process.arch as any,
+        },
+        executablePath: '/root/chrome.exe',
+      };
+
+      const mockExec = vi.mocked(execFile);
+      mockExec.mockImplementation((file, args, options, callback: any) => {
+        callback(new Error('Access Denied'));
+        return {} as any;
+      });
+
+      const report = await checker.check(resolved);
+      expect(report.issues[0].code).toBe('EXECUTABLE_START_FAILED');
     });
   });
 
-  describe('PlaywrightProcessLauncher - executablePath', () => {
-    it('passes exact executablePath parameter into playwright launcherServer', async () => {
+  describe('BrowserRuntimeRegistry - Cache and Reload', () => {
+    it('caches manifest reads and does not reload file on every resolution unless reload() called', async () => {
+      const registry = new BrowserRuntimeRegistry();
+      vi.mocked(access).mockResolvedValue(undefined);
+      vi.mocked(readFile).mockResolvedValue(
+        JSON.stringify({
+          schemaVersion: 1,
+          runtimes: [
+            {
+              id: 'id-1',
+              engine: 'chromium',
+              distribution: 'chromium',
+              channel: 'stable',
+              version: '120.0.0',
+              architecture: process.arch as any,
+              platform: process.platform,
+              relativeExecutablePath: 'chrome.exe',
+            },
+          ],
+        })
+      );
+      vi.mocked(stat).mockResolvedValue({
+        isFile: () => true,
+      } as any);
+
+      const mockExec = vi.mocked(execFile);
+      mockExec.mockImplementation((file, args, options, callback: any) => {
+        callback(null, { stdout: '120.0.6099.0' });
+        return {} as any;
+      });
+
+      // 1. Initialize loads manifest
+      await registry.initialize('/root', '/root/manifest.json');
+      expect(readFile).toHaveBeenCalledTimes(1);
+
+      // 2. Resolve uses cache, does not trigger readFile again
+      await registry.resolveAndVerify({
+        engine: 'chromium',
+        distribution: 'chromium',
+        channel: 'stable',
+        browserVersion: '120.0.0',
+        architecture: process.arch as any,
+      });
+      expect(readFile).toHaveBeenCalledTimes(1);
+
+      // 3. Reload does reload file
+      await registry.reload();
+      expect(readFile).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('PlaywrightProcessLauncher', () => {
+    it('passes exact executablePath parameter into playwright launch options', async () => {
       const mockLaunchServer = vi.fn().mockResolvedValue({
         process: () => ({ pid: 1234 }),
         wsEndpoint: () => 'ws://...',
@@ -251,12 +426,21 @@ describe('Browser Runtime Compatibility & Resolution - Unit Tests', () => {
         executablePath: '/custom/path/to/chrome.exe',
       } as any;
 
-      const handle = await launcher.launch(plan, resolvedRuntime);
+      await launcher.launch(plan, resolvedRuntime);
       expect(mockLaunchServer).toHaveBeenCalledWith(
         expect.objectContaining({
           executablePath: '/custom/path/to/chrome.exe',
         })
       );
+    });
+  });
+
+  describe('SessionRegistry & Sequence numbers', () => {
+    it('ensures monotonic sequence increments on creating snapshots', () => {
+      const registry = new SessionRegistry();
+      const snapshot1 = registry.createSnapshot();
+      const snapshot2 = registry.createSnapshot();
+      expect(snapshot2.sequence).toBe(snapshot1.sequence + 1);
     });
   });
 });

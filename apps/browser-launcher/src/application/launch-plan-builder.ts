@@ -1,4 +1,5 @@
 import type { LaunchProfilePayload } from 'shared';
+
 import { CookieValidator, type ValidatedCookie } from '../cookies/cookie-validator.js';
 import { LauncherError } from '../errors/launcher-error.js';
 

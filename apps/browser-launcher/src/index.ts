@@ -1,14 +1,13 @@
-import { ProcessTransport } from './transport/process-transport.js';
-import { CommandRouter } from './transport/command-router.js';
 import { BrowserLaunchOrchestrator } from './application/browser-launch-orchestrator.js';
 import { BrowserStopOrchestrator } from './application/browser-stop-orchestrator.js';
 import { ShutdownOrchestrator } from './application/shutdown-orchestrator.js';
-import { SessionRegistry } from './runtime/session-registry.js';
+import { CookieSyncCoordinator } from './cookies/cookie-sync-coordinator.js';
 import { ProfileLockManager } from './runtime/profile-lock-manager.js';
 import { SessionLifecycleManager } from './runtime/session-lifecycle-manager.js';
-import { CookieSyncCoordinator } from './cookies/cookie-sync-coordinator.js';
-
+import { SessionRegistry } from './runtime/session-registry.js';
 import { BrowserRuntimeRegistry } from './runtime-compatibility/browser-runtime-registry.js';
+import { CommandRouter } from './transport/command-router.js';
+import { ProcessTransport } from './transport/process-transport.js';
 
 const registry = new SessionRegistry();
 const lockManager = new ProfileLockManager();

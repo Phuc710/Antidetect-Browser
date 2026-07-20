@@ -29,7 +29,9 @@ export class FingerprintService {
     const applyScheme = async (page: Page) => {
       try {
         await page.emulateMedia({ colorScheme: colorScheme as any });
-      } catch {}
+      } catch {
+        // Ignore emulation failures on closed or detached pages
+      }
     };
 
     // Apply to all existing pages

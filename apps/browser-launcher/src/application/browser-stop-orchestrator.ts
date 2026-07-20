@@ -1,6 +1,6 @@
-import { SessionRegistry } from '../runtime/session-registry.js';
-import { SessionLifecycleManager } from '../runtime/session-lifecycle-manager.js';
 import { LauncherError } from '../errors/launcher-error.js';
+import { SessionLifecycleManager } from '../runtime/session-lifecycle-manager.js';
+import { SessionRegistry } from '../runtime/session-registry.js';
 
 export class BrowserStopOrchestrator {
   constructor(

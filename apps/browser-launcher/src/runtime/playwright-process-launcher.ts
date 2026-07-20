@@ -1,4 +1,5 @@
-import net from 'net';
+import net from 'node:net';
+
 import type { BrowserLaunchPlan } from '../application/launch-plan-builder.js';
 import type { ResolvedBrowserRuntime } from '../runtime-compatibility/browser-executable-resolver.js';
 
@@ -40,7 +41,7 @@ export class PlaywrightProcessLauncher {
       args,
     });
 
-    const pid = server.process().pid;
+    const {pid} = server.process();
     if (!pid) {
       throw Object.assign(new Error('Chromium did not expose a process ID.'), {
         code: 'LAUNCH_FAILED',
