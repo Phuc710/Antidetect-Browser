@@ -1,6 +1,6 @@
 import type { BrowserFingerprintWithHeaders } from 'fingerprint-generator';
 import { FingerprintInjector } from 'fingerprint-injector';
-import type { BrowserContext } from 'playwright';
+import type { BrowserContext, Page } from 'playwright';
 
 export class FingerprintService {
   private readonly injector = new FingerprintInjector();
@@ -21,9 +21,25 @@ export class FingerprintService {
       ...this.injector.getInjectableHeaders(fingerprint.headers, browserName),
     });
 
-    // Enforce dark mode preferences or emulation media features
+    // Resolve colorScheme from fingerprint envelope, fallback to 'no-preference'
+    const colorScheme = (fingerprint as any).fingerprint?.colorScheme || 
+                        (fingerprint as any).fingerprint?.navigator?.colorScheme || 
+                        'no-preference';
+
+    const applyScheme = async (page: Page) => {
+      try {
+        await page.emulateMedia({ colorScheme: colorScheme as any });
+      } catch {}
+    };
+
+    // Apply to all existing pages
+    for (const page of context.pages()) {
+      await applyScheme(page);
+    }
+
+    // Listen to new pages
     context.on('page', (page) => {
-      page.emulateMedia({ colorScheme: 'dark' }).catch(() => {});
+      applyScheme(page).catch(() => {});
     });
 
     // Add native fingerprint override injection scripts

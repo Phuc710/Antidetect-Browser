@@ -1,79 +1,84 @@
 import type { ProfileRuntimeState, ProfileRuntimeSnapshot } from 'shared';
+import { PlaywrightRuntimeAdapter } from './playwright-runtime-adapter.js';
+import { LauncherError } from '../errors/launcher-error.js';
 
 export interface BrowserSession {
-  sessionId: string;
-  profileId: string;
-  pid?: number;
+  readonly sessionId: string;
+  readonly profileId: string;
+  readonly pid: number;
   state: ProfileRuntimeState;
-  startedAt: string;
-  engine: 'chromium' | 'firefox' | 'webkit';
-  distribution: 'chromium' | 'chrome' | 'edge' | 'brave' | 'firefox' | 'webkit' | 'custom';
-  channel: 'stable' | 'beta' | 'dev' | 'canary' | 'custom';
-  browserVersion: string;
-  architecture: 'x64' | 'arm64';
-  automation: {
-    protocol: 'cdp' | 'webdriver' | 'marionette';
-    endpoint: string;
+  readonly startedAt: string;
+  readonly engine: 'chromium' | 'firefox' | 'webkit';
+  readonly distribution: 'chromium' | 'chrome' | 'edge' | 'brave' | 'firefox' | 'webkit' | 'custom';
+  readonly channel: 'stable' | 'beta' | 'dev' | 'canary' | 'custom';
+  readonly browserVersion: string;
+  readonly architecture: 'x64' | 'arm64';
+  readonly automation: {
+    readonly protocol: 'cdp' | 'webdriver' | 'marionette';
+    readonly endpoint: string;
   };
-  browserHandle: any;
-  cookieSyncInterval?: NodeJS.Timeout;
+  readonly browserHandle: PlaywrightRuntimeAdapter;
 }
 
-export type SessionPatch = Partial<Omit<BrowserSession, 'profileId' | 'sessionId' | 'browserHandle'>>;
-
 export class SessionRegistry {
-  private readonly sessions = new Map<string, BrowserSession>();
+  private readonly sessionsBySessionId = new Map<string, BrowserSession>();
+  private readonly sessionIdByProfileId = new Map<string, string>();
+  private snapshotSequence = 1;
 
   getByProfileId(profileId: string): BrowserSession | undefined {
-    return [...this.sessions.values()].find((s) => s.profileId === profileId);
+    const sessionId = this.sessionIdByProfileId.get(profileId);
+    return sessionId ? this.sessionsBySessionId.get(sessionId) : undefined;
   }
 
   getBySessionId(sessionId: string): BrowserSession | undefined {
-    return this.sessions.get(sessionId);
+    return this.sessionsBySessionId.get(sessionId);
   }
 
   add(session: BrowserSession): void {
     if (this.getByProfileId(session.profileId)) {
-      throw new Error(`Profile ${session.profileId} is already running.`);
+      throw LauncherError.profileAlreadyRunning(session.profileId);
     }
-    this.sessions.set(session.sessionId, session);
+    if (this.getBySessionId(session.sessionId)) {
+      throw new LauncherError('PROFILE_ALREADY_RUNNING' as any, `Session ${session.sessionId} is already registered.`);
+    }
+    this.sessionsBySessionId.set(session.sessionId, session);
+    this.sessionIdByProfileId.set(session.profileId, session.sessionId);
   }
 
-  update(profileId: string, patch: SessionPatch): void {
-    const session = this.getByProfileId(profileId);
+  updateState(sessionId: string, state: ProfileRuntimeState): void {
+    const session = this.getBySessionId(sessionId);
     if (!session) {
-      throw new Error(`Session for profile ${profileId} not found.`);
+      throw LauncherError.sessionNotFound(sessionId);
     }
-    Object.assign(session, patch);
+    session.state = state;
   }
 
   remove(sessionId: string): BrowserSession | undefined {
-    const session = this.sessions.get(sessionId);
+    const session = this.sessionsBySessionId.get(sessionId);
     if (session) {
-      if (session.cookieSyncInterval) {
-        clearInterval(session.cookieSyncInterval);
-      }
-      this.sessions.delete(sessionId);
+      this.sessionsBySessionId.delete(sessionId);
+      this.sessionIdByProfileId.delete(session.profileId);
     }
     return session;
   }
 
   list(): BrowserSession[] {
-    return [...this.sessions.values()];
+    return [...this.sessionsBySessionId.values()];
   }
 
   snapshot(): ProfileRuntimeSnapshot[] {
-    return [...this.sessions.values()].map((s) => ({
+    const seq = this.snapshotSequence++;
+    return [...this.sessionsBySessionId.values()].map((s) => ({
       profileId: s.profileId,
       browserSessionId: s.sessionId,
-      sequence: 1,
+      sequence: seq,
       state: s.state,
       occurredAt: new Date().toISOString(),
       startedAt: s.startedAt,
       processId: s.pid,
       engine: s.engine,
       distribution: s.distribution,
-      channel: s.channel,
+      channel: s.channel as any,
       browserVersion: s.browserVersion,
       architecture: s.architecture,
     }));

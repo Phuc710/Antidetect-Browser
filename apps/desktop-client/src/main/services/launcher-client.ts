@@ -82,6 +82,7 @@ export class LauncherClient implements BrowserRuntimePort {
   private readonly applicationMode: ApplicationMode;
   private readonly deviceId: string;
   private readonly launcherScriptPath?: string | undefined;
+  private readonly pendingCookieUpdates = new Map<string, { cookies: string; timeout: NodeJS.Timeout }>();
 
   constructor(
     databaseService: DatabaseConnectionProvider,
@@ -147,11 +148,22 @@ export class LauncherClient implements BrowserRuntimePort {
 
         if (event.type === 'session:cookies-sync') {
           const { profileId, cookies } = event.payload;
-          try {
-            this.profileRepository.update(profileId, { cookies, updatedAt: new Date().toISOString() });
-          } catch (err) {
-            logger.error(`Failed to sync cookies in database for profile ${profileId}`, err);
+          
+          const pending = this.pendingCookieUpdates.get(profileId);
+          if (pending) {
+            clearTimeout(pending.timeout);
           }
+
+          const timeout = setTimeout(() => {
+            try {
+              this.profileRepository.update(profileId, { cookies, updatedAt: new Date().toISOString() });
+              this.pendingCookieUpdates.delete(profileId);
+            } catch (err) {
+              logger.error(`Failed to sync cookies in database for profile ${profileId}`, err);
+            }
+          }, 1000); // Debounce database write by 1 second
+
+          this.pendingCookieUpdates.set(profileId, { cookies, timeout });
           return;
         }
 
@@ -182,6 +194,8 @@ export class LauncherClient implements BrowserRuntimePort {
             } else {
               req.reject(this.deserializeError(event.error));
             }
+          } else {
+            logger.warn(`Received response for unknown or timed out requestId: ${event.requestId}`);
           }
           return;
         }
@@ -294,6 +308,9 @@ export class LauncherClient implements BrowserRuntimePort {
     this.isReady = false;
     this.readyPromise = null;
     this.childProcess = null;
+
+    // Flush all pending cookie updates immediately
+    this.flushPendingCookies();
 
     // Reject all pending requests
     for (const req of this.pendingRequests.values()) {
@@ -452,6 +469,10 @@ export class LauncherClient implements BrowserRuntimePort {
   }
 
   async stop(sessionId: string): Promise<void> {
+    const session = this.getSession(sessionId);
+    if (session) {
+      this.flushPendingCookies(session.profileId);
+    }
     return this.sendCommand<void>({
       type: 'profile:stop',
       requestId: randomUUID(),
@@ -524,6 +545,7 @@ export class LauncherClient implements BrowserRuntimePort {
   }
 
   async shutdown(): Promise<void> {
+    this.flushPendingCookies(); // Flush all pending cookie writes before shutdown
     if (!this.childProcess) return;
 
     try {
@@ -540,6 +562,31 @@ export class LauncherClient implements BrowserRuntimePort {
       }
       this.isReady = false;
       this.readyPromise = null;
+    }
+  }
+
+  private flushPendingCookies(profileId?: string) {
+    if (profileId) {
+      const pending = this.pendingCookieUpdates.get(profileId);
+      if (pending) {
+        clearTimeout(pending.timeout);
+        try {
+          this.profileRepository.update(profileId, { cookies: pending.cookies, updatedAt: new Date().toISOString() });
+        } catch (err) {
+          logger.error(`Failed to flush cookies update for profile ${profileId}`, err);
+        }
+        this.pendingCookieUpdates.delete(profileId);
+      }
+    } else {
+      for (const [pId, pending] of this.pendingCookieUpdates.entries()) {
+        clearTimeout(pending.timeout);
+        try {
+          this.profileRepository.update(pId, { cookies: pending.cookies, updatedAt: new Date().toISOString() });
+        } catch (err) {
+          logger.error(`Failed to flush cookies update for profile ${pId}`, err);
+        }
+      }
+      this.pendingCookieUpdates.clear();
     }
   }
 }
