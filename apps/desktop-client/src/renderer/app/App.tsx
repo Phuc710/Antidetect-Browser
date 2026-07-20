@@ -4,7 +4,6 @@ import { useAuthStore } from '../store/auth-store.js';
 import { LoginPage } from '../pages/auth/LoginPage.js';
 import { RegisterPage } from '../pages/auth/RegisterPage.js';
 import { ForgotPasswordPage } from '../pages/auth/ForgotPasswordPage.js';
-import { DashboardPage } from '../pages/dashboard/DashboardPage.js';
 import { ProfilesPage } from '../pages/profiles/ProfilesPage.js';
 import { CreateProfilePage } from '../pages/profiles/CreateProfilePage.js';
 import { ProxiesPage } from '../pages/proxies/ProxiesPage.js';
@@ -46,7 +45,6 @@ export function App(): JSX.Element {
         {/* Protected routes — yêu cầu đăng nhập */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profiles" element={<ProfilesPage />} />
             <Route path="/profiles/create" element={<CreateProfilePage />} />
             <Route path="/profiles/:profileId/edit" element={<CreateProfilePage />} />
@@ -56,8 +54,8 @@ export function App(): JSX.Element {
         </Route>
 
         {/* Redirect mặc định */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<Navigate to="/profiles" replace />} />
+        <Route path="*" element={<Navigate to="/profiles" replace />} />
       </Routes>
     </BrowserRouter>
   );

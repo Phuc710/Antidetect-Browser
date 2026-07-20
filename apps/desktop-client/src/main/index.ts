@@ -54,7 +54,7 @@ async function bootstrap(): Promise<void> {
 
   const authService = new AuthService(db);
   const {
-    browserApplicationService: browserService,
+    browserRuntime,
     localApiService,
     profileService,
     proxyService,
@@ -62,8 +62,7 @@ async function bootstrap(): Promise<void> {
     applicationMode: resolveApplicationMode(app.isPackaged, process.env['NODE_ENV']),
   });
 
-  const recoveredSessions = browserService.recoverCrashedSessions();
-  if (recoveredSessions > 0) logger.warn(`Recovered ${recoveredSessions} interrupted browser session(s).`);
+  await browserRuntime.initialize();
 
   localApiService.start();
   await proxyService.initialize();
@@ -71,13 +70,13 @@ async function bootstrap(): Promise<void> {
   // Đăng ký dọn dẹp khi tắt app
   app.on('will-quit', () => {
     localApiService.stop();
-    void browserService.shutdown();
+    void browserRuntime.shutdown();
   });
 
   // Đăng ký IPC handlers TRƯỚC khi tạo window
   registerAuthHandlers(authService);
   registerLocalApiHandlers(db, localApiService);
-  registerProfileHandlers(profileService, browserService);
+  registerProfileHandlers(profileService, browserRuntime);
   registerProxyHandlers(proxyService);
 
   // Tạo main window

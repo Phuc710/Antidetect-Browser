@@ -104,7 +104,15 @@ const desktopAPI: DesktopBridgeAPI = {
     },
   },
   localApi: {
-    async getConfig(): Promise<{ enabled: boolean; port: number }> {
+    async getConfig(): Promise<{
+      enabled: boolean;
+      port: number;
+      scopes: {
+        launch: boolean;
+        read: boolean;
+        write: boolean;
+      };
+    }> {
       return ipcRenderer.invoke('local-api:get-config').then((res) => {
         if (!res.ok) throw new Error(res.message);
         return res.data;
@@ -118,6 +126,35 @@ const desktopAPI: DesktopBridgeAPI = {
     },
     async rotateKey(): Promise<string> {
       return ipcRenderer.invoke('local-api:rotate-key').then((res) => {
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+      });
+    },
+    async setScopes(scopes: {
+      launch: boolean;
+      read: boolean;
+      write: boolean;
+    }): Promise<{
+      scopes: {
+        launch: boolean;
+        read: boolean;
+        write: boolean;
+      };
+    }> {
+      return ipcRenderer.invoke('local-api:set-scopes', scopes).then((res) => {
+        if (!res.ok) throw new Error(res.message);
+        return res.data;
+      });
+    },
+    async getLogs(): Promise<Array<{
+      id: string;
+      method: string;
+      path: string;
+      status: number;
+      timestamp: string;
+      error?: string;
+    }>> {
+      return ipcRenderer.invoke('local-api:get-logs').then((res) => {
         if (!res.ok) throw new Error(res.message);
         return res.data;
       });

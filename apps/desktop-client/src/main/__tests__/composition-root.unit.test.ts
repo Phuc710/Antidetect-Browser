@@ -19,9 +19,9 @@ describe('desktop composition root', () => {
     }, { applicationMode: 'test' });
 
     expect(Reflect.get(runtime.profileService, 'browserService'))
-      .toBe(runtime.browserApplicationService);
+      .toBe(runtime.browserRuntime);
     expect(Reflect.get(runtime.localApiService, 'browserService'))
-      .toBe(runtime.browserApplicationService);
+      .toBe(runtime.browserRuntime);
   });
 
   it('forces packaged and NODE_ENV production builds into production mode', () => {

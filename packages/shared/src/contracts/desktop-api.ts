@@ -26,9 +26,36 @@ export interface WindowAPI {
 }
 
 export interface LocalApiAPI {
-  getConfig(): Promise<{ enabled: boolean; port: number }>;
+  getConfig(): Promise<{
+    enabled: boolean;
+    port: number;
+    scopes: {
+      launch: boolean;
+      read: boolean;
+      write: boolean;
+    };
+  }>;
   setEnabled(enabled: boolean): Promise<{ enabled: boolean }>;
   rotateKey(): Promise<string>;
+  setScopes(scopes: {
+    launch: boolean;
+    read: boolean;
+    write: boolean;
+  }): Promise<{
+    scopes: {
+      launch: boolean;
+      read: boolean;
+      write: boolean;
+    };
+  }>;
+  getLogs(): Promise<Array<{
+    id: string;
+    method: string;
+    path: string;
+    status: number;
+    timestamp: string;
+    error?: string;
+  }>>;
 }
 
 export interface DesktopAPI {

@@ -10,7 +10,7 @@ import type {
 import { getHostArchitecture } from '../../shared/profile-contracts.js';
 import { ProfileRepository } from '../database/repositories/profile-repository.js';
 import { AuditService } from './audit-service.js';
-import type { BrowserApplicationService } from './browser-application-service.js';
+import type { BrowserRuntimePort } from './browser-runtime-port.js';
 import type { DatabaseConnectionProvider } from './database-service.js';
 import { Logger } from './logger.js';
 import { ProfileStorageResolver } from './profile-storage-resolver.js';
@@ -28,7 +28,7 @@ export class ProfileService {
 
   constructor(
     db: DatabaseConnectionProvider,
-    private readonly browserService: BrowserApplicationService,
+    private readonly browserService: BrowserRuntimePort,
   ) {
     this.repository = new ProfileRepository(db.getConnection());
     this.audit = new AuditService(db);

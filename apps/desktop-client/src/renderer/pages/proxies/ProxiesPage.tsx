@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Globe, Plus, RefreshCw, Search, X } from 'lucide-react';
+import { AlertTriangle, Plus, RefreshCw, Search, X } from 'lucide-react';
 import type { ProxyTestResult, ProxyView } from 'shared';
 import { proxyIpc } from '../../features/proxies/api/proxy-ipc.js';
 import { ProxyFormDialog } from '../../features/proxies/components/ProxyFormDialog.js';
 import { ProxyTable } from '../../features/proxies/components/ProxyTable.js';
+import { EmptyState } from '../../components/ui/EmptyState.js';
 import './ProxiesPage.css';
 
 type PageState = 'loading' | 'success' | 'empty' | 'error';
@@ -82,12 +83,16 @@ export function ProxiesPage(): JSX.Element {
           />
         )}
         {pageState === 'empty' && (
-          <div className="proxies-state-card" role="status">
-            <div className="proxies-state-card__icon-wrap"><Globe size={48} className="proxies-state-card__icon" /></div>
-            <h2 className="proxies-state-card__title">No saved proxies</h2>
-            <p className="proxies-state-card__desc">Add an HTTP, HTTPS, or SOCKS5 proxy. Passwords are stored in the operating-system credential vault.</p>
-            <button type="button" className="button button--primary" onClick={() => setDialogOpen(true)}><Plus size={15} /> Add first proxy</button>
-          </div>
+          <EmptyState
+            icon="Globe"
+            title="No saved proxies"
+            description="Add an HTTP, HTTPS, or SOCKS5 proxy. Passwords are stored in the operating-system credential vault."
+            action={
+              <button type="button" className="button button--primary" onClick={() => setDialogOpen(true)}>
+                <Plus size={15} /> Add first proxy
+              </button>
+            }
+          />
         )}
         {pageState === 'error' && (
           <div className="proxies-state-card proxies-state-card--error" role="alert">

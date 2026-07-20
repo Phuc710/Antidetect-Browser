@@ -254,9 +254,91 @@
 
 /* ── Table Container ──────────────────────────────────────────────────── */
 .ptable-wrap {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   overflow: auto;
   background: #ffffff;
+}
+
+.ptable-wrap--center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: #ffffff;
+}
+
+/* ── Empty State — shared centered placeholder for all tabs ───────────── */
+.ptable-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 40px 24px;
+  text-align: center;
+  min-height: 240px;
+}
+
+.ptable-empty__icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #f0f7ff;
+  color: #6bbae8;
+  margin-bottom: 16px;
+}
+
+.ptable-empty__icon {
+  width: 36px;
+  height: 36px;
+  opacity: 0.85;
+}
+
+.ptable-empty__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a2535;
+  margin: 0 0 8px 0;
+}
+
+.ptable-empty__desc {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: #748198;
+  max-width: 360px;
+  line-height: 1.55;
+  margin: 0 0 20px 0;
+}
+
+.ptable-empty__action {
+  margin-top: 4px;
+}
+
+.ptable-empty__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 16px;
+  background: #159cf4;
+  color: #ffffff;
+  border: 0;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.ptable-empty__btn:hover {
+  background: #107ec7;
 }
 
 .ptable {
@@ -843,52 +925,31 @@
   user-select: none;
 }
 
+/* Left: Total + page-size dropdown */
 .pfooter__left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+.pfooter__total {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
   color: #4f5d67;
+  white-space: nowrap;
 }
 
-.pfooter__divider {
-  color: #c7d7e2;
-  margin: 0 2px;
+.pfooter__page-size-container {
+  position: relative;
 }
 
-.pfooter__action-btn {
+.pfooter__page-size-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: space-between;
+  gap: 6px;
   height: 26px;
   padding: 0 8px;
-  border: 1px solid #bdcad3;
-  border-radius: 4px;
-  background: #ffffff;
-  color: #4f5d67;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 120ms ease;
-}
-
-.pfooter__action-btn:hover {
-  background: #f4fbff;
-  border-color: #159cf4;
-  color: #159cf4;
-}
-
-.pfooter__right {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.pfooter__page-size-sel {
-  height: 26px;
-  padding: 0 6px;
   border: 1px solid #bdcad3;
   border-radius: 4px;
   background: #ffffff;
@@ -898,6 +959,70 @@
   font-weight: 500;
   outline: none;
   cursor: pointer;
+  transition: border-color 120ms ease;
+  user-select: none;
+}
+
+.pfooter__page-size-trigger:hover {
+  border-color: #159cf4;
+}
+
+.pfooter__page-size-arrow {
+  color: #4f5d67;
+  transition: transform 120ms ease;
+  flex-shrink: 0;
+}
+
+.pfooter__page-size-arrow--open {
+  transform: rotate(180deg);
+}
+
+.pfooter__page-size-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 90px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px;
+  z-index: 50;
+  box-sizing: border-box;
+}
+
+.pfooter__page-size-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease;
+  white-space: nowrap;
+}
+
+.pfooter__page-size-option:hover {
+  background-color: #f1f5f9;
+}
+
+.pfooter__page-size-option--active {
+  background-color: #e2e8f0;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+/* Right: Jump to Page + nav buttons */
+.pfooter__right {
+  display: flex;
+  align-items: center;
 }
 
 .pfooter__pagination {
@@ -909,11 +1034,14 @@
 }
 
 .pfooter__jump-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: #4f5d67;
   white-space: nowrap;
 }
 
 .pfooter__jump-input {
-  width: 32px;
+  width: 34px;
   height: 26px;
   text-align: center;
   border: 1px solid #bdcad3;
@@ -924,6 +1052,21 @@
   font-size: 12px;
   font-weight: 500;
   outline: none;
+  transition: border-color 120ms ease;
+}
+
+.pfooter__jump-input:focus {
+  border-color: #159cf4;
+}
+
+/* Hide number spin arrows */
+.pfooter__jump-input::-webkit-inner-spin-button,
+.pfooter__jump-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.pfooter__jump-input[type='number'] {
+  -moz-appearance: textfield;
 }
 
 .pfooter__nav-btn {
@@ -949,14 +1092,6 @@
 .pfooter__nav-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-
-.pfooter__page-num {
-  font-size: 12px;
-  font-weight: 600;
-  color: #111820;
-  min-width: 14px;
-  text-align: center;
 }
 
 /* ── Bulk Selection Floating Bar (RoxyBrowser Style) ────────────────────── */

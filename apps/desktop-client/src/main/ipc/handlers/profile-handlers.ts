@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { PROFILE_IPC_CHANNELS } from '../../../shared/profile-ipc-channels.js';
-import type { BrowserApplicationService } from '../../services/browser-application-service.js';
+import type { BrowserRuntimePort } from '../../services/browser-runtime-port.js';
 import type { ProfileService } from '../../services/profile-service.js';
 import { Logger } from '../../services/logger.js';
 import { safeBrowserFailure } from '../../services/browser-error-mapper.js';
@@ -17,9 +17,9 @@ const logger = new Logger('ProfileIpcHandler');
 
 export function registerProfileHandlers(
   profileService: ProfileService,
-  browserService: BrowserApplicationService,
+  browserService: BrowserRuntimePort,
 ): void {
-  browserService.subscribeRuntime((event) => {
+  browserService.subscribe((event) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) window.webContents.send(PROFILE_IPC_CHANNELS.RUNTIME_EVENT, event);
     }

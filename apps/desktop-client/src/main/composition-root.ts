@@ -1,8 +1,4 @@
 import type { DatabaseConnectionProvider } from './services/database-service.js';
-import {
-  BrowserApplicationService,
-  type BrowserApplicationServiceOptions,
-} from './services/browser-application-service.js';
 import { LocalApiService } from './services/local-api-service.js';
 import { ProfileService } from './services/profile-service.js';
 import { ProxyService } from './services/proxy-service.js';
@@ -17,9 +13,11 @@ import {
   type AuthenticatedTransportClient,
 } from './services/fingerprint-provider.js';
 import { PRODUCTION_FINGERPRINT_PUBLIC_KEYS } from './services/fingerprint-public-keys.js';
+import type { BrowserRuntimePort } from './services/browser-runtime-port.js';
+import { LauncherClient, type LauncherClientOptions } from './services/launcher-client.js';
 
 export interface CoreDesktopRuntime {
-  browserApplicationService: BrowserApplicationService;
+  browserRuntime: BrowserRuntimePort;
   localApiService: LocalApiService;
   profileService: ProfileService;
   proxyService: ProxyService;
@@ -30,7 +28,7 @@ export interface CoreDesktopRuntimeOptions {
   cloudFingerprintTransport?: AuthenticatedTransportClient;
   productionFingerprintPublicKeys?: FingerprintPublicKeyBundle;
   browserOptions?: Omit<
-    BrowserApplicationServiceOptions,
+    LauncherClientOptions,
     'fingerprintProvider' | 'fingerprintValidator'
   >;
 }
@@ -47,7 +45,7 @@ export function resolveApplicationMode(
 /**
  * The only composition root for browser lifecycle consumers. Both Electron IPC
  * (through ProfileService/handlers) and the Local Automation API receive this
- * exact BrowserApplicationService object.
+ * exact BrowserRuntimePort object.
  */
 export function createCoreDesktopRuntime(
   databaseService: DatabaseConnectionProvider,
@@ -71,17 +69,23 @@ export function createCoreDesktopRuntime(
     ...(developmentSigningMaterial ? { developmentSigningMaterial } : {}),
   });
   const proxyService = new ProxyService(databaseService);
-  const browserApplicationService = new BrowserApplicationService(databaseService, {
-    ...options.browserOptions,
+
+  const browserRuntime = new LauncherClient(databaseService, {
+    applicationMode,
+    deviceId: 'local_device',
     fingerprintProvider,
     fingerprintValidator,
     resolveProxy: options.browserOptions?.resolveProxy
       ?? ((proxyId) => proxyService.resolveForLaunch(proxyId)),
+    canUseOfflineFingerprintCache: options.browserOptions?.canUseOfflineFingerprintCache,
+    storageResolver: options.browserOptions?.storageResolver,
+    fingerprintMapper: options.browserOptions?.fingerprintMapper,
   });
+
   return {
-    browserApplicationService,
-    localApiService: new LocalApiService(databaseService, browserApplicationService),
-    profileService: new ProfileService(databaseService, browserApplicationService),
+    browserRuntime,
+    localApiService: new LocalApiService(databaseService, browserRuntime),
+    profileService: new ProfileService(databaseService, browserRuntime),
     proxyService,
   };
 }

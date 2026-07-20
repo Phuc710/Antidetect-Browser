@@ -11,7 +11,7 @@ export function AuthRoute(): JSX.Element {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/profiles" replace />;
   }
 
   return <Outlet />;

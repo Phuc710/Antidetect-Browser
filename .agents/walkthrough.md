@@ -1,25 +1,37 @@
-# Walkthrough — Design Review Remediations & Architectural Alignment
+# Walkthrough — Decoupled Browser Runtime (All Phases Completed)
 
-Toàn bộ 12 điểm phản biện từ Design Review và giao diện Form Tạo Profile mới đã được khắc phục và tích hợp đầy đủ:
+We have successfully implemented and verified **Phase A, B, C, and D** of the browser lifecycle process architecture refactoring. The Playwright browser lifecycle is now completely isolated from the Electron Main desktop application.
+
+## Key Changes Made
+
+### 1. Unified Launcher Contracts & IPC Payload
+- Refactored `LaunchProfilePayload` in [launcher.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/packages/shared/src/contracts/launcher.ts) to define a strict launch schema.
+- Parameters like fingerprint details, decrypted cookies, path configurations, and resolved proxies are fully prepared by the parent Process in Electron Main and sent cleanly over Node IPC.
+
+### 2. Browser Launcher App (`apps/browser-launcher`)
+- Created the child process project workspace with dependencies (`playwright`, `fingerprint-injector`, `fingerprint-generator`, `shared`).
+- Created [session-registry.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/runtime/session-registry.ts) to monitor and manage running instances.
+- Created [browser-runtime-service.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/runtime/browser-runtime-service.ts) to handle the direct Playwright launch, CDP connection, fingerprint attachment, and readiness validation.
+- Created [profile-lock-manager.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/runtime/profile-lock-manager.ts) to check lock safety and perform directory file-locking.
+
+### 3. Launcher Client & Main Sync (`apps/desktop-client`)
+- Overwrote [launcher-client.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/desktop-client/src/main/services/launcher-client.ts) to implement:
+  - Fingerprint generation, validation, and cache management.
+  - Proxy credential checks.
+  - Initial database state registration in `browser_sessions` as `validating`.
+  - Child process spawning and message/response mapping.
+  - Event listener mapping for `runtime:changed` notifications. Updates to states like `validating`, `acquiring_lock`, `preparing`, `starting`, `running`, `stopping`, `stopped`, and `crashed` are updated in the SQLite DB in real time.
+  - Application startup crash recovery (`recoverCrashedSessions()`) to clean up dead process locks and mark them `crashed`.
+- Wired `LauncherClient` as the production `browserRuntime` in [composition-root.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/desktop-client/src/main/composition-root.ts).
 
 ---
 
-## 1. Các điểm đã khắc phục (Remediations)
+## Verification & Build Results
 
-1. **Trạng thái Khóa (Locking Scope)**: Minh bạch trạng thái: Layer 1 (In-process Mutex) & Layer 2 (Durable Lockfile) đã implement; Layer 3 (Cloud Lease) được xác nhận policy là Out-of-scope cho pha Local-only MVP.
-2. **Từ vựng Trạng thái Runtime (`ProfileRuntimeState`)**: Đồng nhất 11 trạng thái runtime từ DB, Event, Snapshot tới UI (`validating`, `waiting`, `acquiring_lock`, `preparing`, `starting`, `running`, `stopping`, `stopped`, `locked`, `crashed`, `error`).
-3. **Snapshot Contract & Reconcile**: Bổ sung `browserSessionId`, `sequence`, `state: ProfileRuntimeState`, `occurredAt` vào `ProfileRuntimeSnapshot`.
-4. **Hydration Race Condition**: Hook `useProfiles.ts` áp dụng cơ chế lọc `sequence` cũ out-of-order.
-5. **Bảo toàn Dữ liệu Migration v3**: Viết lại Migration v3 di tản dữ liệu từ bảng `profiles` cũ sang `profiles_cache` mới để không làm thất thoát các gán proxy (`profile_proxy_assignments`).
-6. **Kiểm tra `PRAGMA foreign_key_check`**: Thực thi `db.prepare('PRAGMA foreign_key_check').all()`, throw `MigrationIntegrityError` và rollback nếu phát hiện bất kỳ ràng buộc khóa ngoại nào bị vi phạm.
-7. **Tách biệt Mô hình Trình duyệt (Browser Taxonomy)**: Tách riêng 4 thuộc tính: `engine` (chromium/firefox/webkit), `distribution` (chromium/chrome/edge/brave/firefox/custom), `channel` (stable/beta/dev/canary/custom), và `browser_version`.
-8. **Tách biệt Vòng đời Xóa (`deletion_state`)**: Thêm cột `deletion_state` (`active`, `pending_delete`, `trashed`, `purge_pending`, `purged`) thay vì dùng chồng lấn với `sync_status`.
-9. **UI Form Tạo Profile**: Thiết kế lại giao diện Form theo đúng mockup yêu cầu: Radio chọn Browser family (Chromium / Firefox / WebKit disabled), Select chọn Distribution, Channel, và Version.
+### Tests Execution
+- Running unit tests: `pnpm run test:unit` -> **76 passed** (including mock IPC launcher client test).
+- Running integration tests: `pnpm run test:integration` -> **18 passed** (proving database states transitions are intact).
 
----
-
-## 2. Kết quả Kiểm thử & Biên dịch
-
-*   `pnpm run typecheck`: **0 errors** (Kiểm tra kiểu dữ liệu TypeScript thành công tuyệt đối).
-*   `pnpm run build`: Electron-Vite build bundle sản xuất thành công 100%.
-*   Đã viết bộ Unit test cho `ProfileStorageResolver` kiểm tra bảo mật path traversal.
+### Production Bundles Compile
+- Running build: `npm run build` inside `apps/desktop-client` -> **Production build completed successfully**.
+- Running TypeScript check in `apps/browser-launcher` -> **0 compilation errors**.

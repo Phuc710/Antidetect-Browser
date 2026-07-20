@@ -7,6 +7,15 @@ interface LocalApiConfig {
   port: number;
 }
 
+interface RequestLog {
+  id: string;
+  method: string;
+  path: string;
+  status: number;
+  timestamp: string;
+  error?: string;
+}
+
 export function SettingsPage(): JSX.Element {
   const [activeTab, setActiveTab] = useState<'general' | 'developer'>('developer');
   
@@ -17,11 +26,36 @@ export function SettingsPage(): JSX.Element {
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
+  const [scopes, setScopes] = useState<{ launch: boolean; read: boolean; write: boolean }>({
+    launch: true,
+    read: true,
+    write: false,
+  });
+
+  const [requestLogs, setRequestLogs] = useState<RequestLog[]>([]);
+
   useEffect(() => {
     // Load config on component mount
     window.desktop.localApi.getConfig()
-      .then((cfg) => setConfig(cfg))
+      .then((cfg) => {
+        setConfig({ enabled: cfg.enabled, port: cfg.port });
+        setScopes(cfg.scopes);
+      })
       .catch(() => {});
+
+    // Initial fetch of logs
+    window.desktop.localApi.getLogs()
+      .then((logs) => setRequestLogs(logs))
+      .catch(() => {});
+
+    // Poll logs every 3 seconds
+    const interval = setInterval(() => {
+      window.desktop.localApi.getLogs()
+        .then((logs) => setRequestLogs(logs))
+        .catch(() => {});
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
   async function handleToggleEnabled() {
@@ -59,6 +93,16 @@ export function SettingsPage(): JSX.Element {
       setCopiedUrl(true);
       setTimeout(() => setCopiedUrl(false), 2000);
     });
+  }
+
+  async function handleToggleScope(scopeName: 'launch' | 'read' | 'write') {
+    const nextScopes = { ...scopes, [scopeName]: !scopes[scopeName] };
+    try {
+      await window.desktop.localApi.setScopes(nextScopes);
+      setScopes(nextScopes);
+    } catch {
+      alert('Không thể cập nhật quyền truy cập.');
+    }
   }
 
   return (
@@ -183,26 +227,74 @@ export function SettingsPage(): JSX.Element {
                 
                 <div className="settings-panel__box-row">
                   <span>Khởi chạy trình duyệt qua API</span>
-                  <input type="checkbox" defaultChecked className="settings-panel__toggle" />
+                  <input
+                    type="checkbox"
+                    checked={scopes.launch}
+                    onChange={() => handleToggleScope('launch')}
+                    className="settings-panel__toggle"
+                  />
                 </div>
                 
                 <div className="settings-panel__box-row">
                   <span>Đọc dữ liệu Profile</span>
-                  <input type="checkbox" defaultChecked className="settings-panel__toggle" />
+                  <input
+                    type="checkbox"
+                    checked={scopes.read}
+                    onChange={() => handleToggleScope('read')}
+                    className="settings-panel__toggle"
+                  />
                 </div>
 
                 <div className="settings-panel__box-row">
                   <span>Sửa đổi Profile / Tạo mới</span>
-                  <input type="checkbox" className="settings-panel__toggle" />
+                  <input
+                    type="checkbox"
+                    checked={scopes.write}
+                    onChange={() => handleToggleScope('write')}
+                    className="settings-panel__toggle"
+                  />
                 </div>
               </div>
 
               {/* Recent Request Logs */}
               <div className="settings-panel__group-box">
                 <h3 className="settings-panel__box-title">Nhật ký yêu cầu gần đây</h3>
-                <p className="settings-panel__desc">
-                  Chưa có nhật ký yêu cầu HTTP nào. Dữ liệu giám sát nhật ký trực tiếp sẽ tự động xuất hiện khi có yêu cầu được gửi tới Local API.
-                </p>
+                {requestLogs.length === 0 ? (
+                  <p className="settings-panel__desc">
+                    Chưa có nhật ký yêu cầu HTTP nào. Dữ liệu giám sát nhật ký trực tiếp sẽ tự động xuất hiện khi có yêu cầu được gửi tới Local API.
+                  </p>
+                ) : (
+                  <div className="settings-logs-table-wrap">
+                    <table className="settings-logs-table">
+                      <thead>
+                        <tr>
+                          <th>Thời gian</th>
+                          <th>Phương thức</th>
+                          <th>Đường dẫn</th>
+                          <th>Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {requestLogs.map((log) => (
+                          <tr key={log.id}>
+                            <td>{new Date(log.timestamp).toLocaleTimeString()}</td>
+                            <td>
+                              <span className={`method-badge method-badge--${log.method.toLowerCase()}`}>
+                                {log.method}
+                              </span>
+                            </td>
+                            <td className="font-mono">{log.path}</td>
+                            <td>
+                              <span className={`status-badge ${log.status >= 200 && log.status < 300 ? 'status-badge--success' : 'status-badge--error'}`}>
+                                {log.status} {log.error ? `(${log.error})` : ''}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
             </section>

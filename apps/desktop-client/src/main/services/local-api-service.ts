@@ -1,7 +1,7 @@
 import http from 'http';
 import { createHash, randomBytes } from 'crypto';
 import type { DatabaseConnectionProvider } from './database-service.js';
-import type { BrowserApplicationService } from './browser-application-service.js';
+import type { BrowserRuntimePort } from './browser-runtime-port.js';
 import { Logger } from './logger.js';
 import { safeBrowserFailure } from './browser-error-mapper.js';
 
@@ -12,11 +12,22 @@ interface RateLimiter {
     lastRefill: number;
 }
 
+export interface RequestLog {
+    id: string;
+    method: string;
+    path: string;
+    status: number;
+    timestamp: string;
+    error?: string;
+}
+
 export class LocalApiService {
     private server: http.Server | null = null;
     private isEnabled = false;
     private port = 50325;
     private apiKeyHash = '';
+    private scopes = { launch: true, read: true, write: false };
+    private logs: RequestLog[] = [];
 
     // Simple Token Bucket Rate Limiter per endpoint category
     private limiters = new Map<string, RateLimiter>();
@@ -32,7 +43,7 @@ export class LocalApiService {
 
     constructor(
         private readonly db: DatabaseConnectionProvider,
-        private readonly browserService: BrowserApplicationService,
+        private readonly browserService: BrowserRuntimePort,
     ) {
         this.loadConfiguration();
     }
@@ -55,7 +66,7 @@ export class LocalApiService {
                     "SELECT value FROM settings WHERE key = 'local_api_port'",
                 )
                 .get() as { value: string } | undefined;
-            this.port = portRow ? parseInt(portRow.value) : 50325;
+            this.port = portRow ? parseInt(portRow.value, 10) : 50325;
 
             // Load API Key hash
             const hashRow = connection
@@ -64,6 +75,17 @@ export class LocalApiService {
                 )
                 .get() as { value: string } | undefined;
             this.apiKeyHash = hashRow?.value || '';
+
+            // Load scopes
+            const launchScope = connection.prepare("SELECT value FROM settings WHERE key = 'local_api_scope_launch'").get() as { value: string } | undefined;
+            const readScope = connection.prepare("SELECT value FROM settings WHERE key = 'local_api_scope_read'").get() as { value: string } | undefined;
+            const writeScope = connection.prepare("SELECT value FROM settings WHERE key = 'local_api_scope_write'").get() as { value: string } | undefined;
+
+            this.scopes = {
+                launch: launchScope ? launchScope.value === 'true' : true,
+                read: readScope ? readScope.value === 'true' : true,
+                write: writeScope ? writeScope.value === 'true' : false,
+            };
 
             // Sinh API key mặc định nếu chưa có
             if (!this.apiKeyHash) {
@@ -94,6 +116,26 @@ export class LocalApiService {
         this.apiKeyHash = hash;
         logger.info('Rotated Local API authentication key.');
         return rawKey;
+    }
+
+    setScopes(scopes: { launch: boolean; read: boolean; write: boolean }) {
+        const connection = this.db.getConnection();
+        connection.prepare("INSERT INTO settings (key, value) VALUES ('local_api_scope_launch', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(scopes.launch ? 'true' : 'false');
+        connection.prepare("INSERT INTO settings (key, value) VALUES ('local_api_scope_read', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(scopes.read ? 'true' : 'false');
+        connection.prepare("INSERT INTO settings (key, value) VALUES ('local_api_scope_write', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(scopes.write ? 'true' : 'false');
+        this.scopes = { ...scopes };
+        logger.info('Updated Local API security scopes configuration.');
+    }
+
+    getLogs(): RequestLog[] {
+        return [...this.logs];
+    }
+
+    private addLog(log: RequestLog) {
+        this.logs.unshift(log);
+        if (this.logs.length > 50) {
+            this.logs.pop();
+        }
     }
 
     start(): void {
@@ -157,6 +199,31 @@ export class LocalApiService {
             return res.end();
         }
 
+        const logEntry: RequestLog = {
+            id: randomBytes(8).toString('hex'),
+            method: method || 'UNKNOWN',
+            path: path || '/',
+            status: 200,
+            timestamp: new Date().toISOString(),
+        };
+
+        const originalWriteHead = res.writeHead;
+        const originalEnd = res.end;
+
+        res.writeHead = ((statusCode: number, ...args: any[]) => {
+            logEntry.status = statusCode;
+            return originalWriteHead.apply(res, [statusCode, ...args] as any);
+        }) as any;
+
+        res.end = ((...args: any[]) => {
+            const errorReason = (res as any).errorReason;
+            if (errorReason) {
+                logEntry.error = errorReason;
+            }
+            this.addLog(logEntry);
+            return originalEnd.apply(res, args as any);
+        }) as any;
+
         // 1. Health check route không cần auth
         if (path === '/local/v1/status' && method === 'GET') {
             if (!this.checkRateLimit('status')) {
@@ -180,7 +247,32 @@ export class LocalApiService {
             );
         }
 
-        // 3. API Routing
+        // 3. Enforce API Scopes
+        const isReadRequest = (path === '/local/v1/browser-sessions' && method === 'GET') ||
+            (path.match(/^\/local\/v1\/browser-sessions\/([a-zA-Z0-9-]+)$/) && method === 'GET');
+
+        const isWriteLaunchRequest = (path === '/local/v1/browser-sessions' && method === 'POST') ||
+            (path.match(/^\/local\/v1\/browser-sessions\/([a-zA-Z0-9-]+)$/) && method === 'DELETE');
+
+        if (isReadRequest && !this.scopes.read) {
+            return this.sendError(
+                res,
+                403,
+                'FORBIDDEN',
+                'Quyền truy cập dữ liệu bị vô hiệu hóa (Scope: Read).',
+            );
+        }
+
+        if (isWriteLaunchRequest && !this.scopes.launch) {
+            return this.sendError(
+                res,
+                403,
+                'FORBIDDEN',
+                'Quyền khởi chạy/dừng trình duyệt bị vô hiệu hóa (Scope: Launch).',
+            );
+        }
+
+        // 4. API Routing
         if (path === '/local/v1/browser-sessions' && method === 'GET') {
             if (!this.checkRateLimit('sessions'))
                 return this.sendError(
@@ -314,7 +406,7 @@ export class LocalApiService {
                         : undefined,
                 port:
                     s.automation.protocol === 'marionette'
-                        ? s.automation.port
+                        ? (s.automation as any).port
                         : undefined,
             },
             startedAt: s.startedAt,
@@ -348,7 +440,7 @@ export class LocalApiService {
                         : undefined,
                 port:
                     s.automation.protocol === 'marionette'
-                        ? s.automation.port
+                        ? (s.automation as any).port
                         : undefined,
             },
             startedAt: s.startedAt,
@@ -398,7 +490,7 @@ export class LocalApiService {
                                     : undefined,
                             port:
                                 session.automation.protocol === 'marionette'
-                                    ? session.automation.port
+                                    ? (session.automation as any).port
                                     : undefined,
                         },
                         startedAt: session.startedAt,
@@ -459,6 +551,7 @@ export class LocalApiService {
         code: string,
         message: string,
     ) {
+        (res as any).errorReason = message;
         res.writeHead(status, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: { code, message } }));
     }

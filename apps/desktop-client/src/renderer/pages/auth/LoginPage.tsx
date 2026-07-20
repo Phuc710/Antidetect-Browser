@@ -75,7 +75,7 @@ export function LoginPage(): JSX.Element {
         { rememberDevice },
       );
       setUser(result.user);
-      void navigate('/dashboard', { replace: true });
+      void navigate('/profiles', { replace: true });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Đăng nhập thất bại. Vui lòng thử lại.';
       setErrors({ general: message });
