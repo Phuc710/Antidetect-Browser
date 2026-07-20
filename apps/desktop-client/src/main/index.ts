@@ -53,6 +53,7 @@ async function bootstrap(): Promise<void> {
   await db.initialize();
 
   const authService = new AuthService(db);
+  const config = getConfig();
   const {
     browserRuntime,
     localApiService,
@@ -60,6 +61,7 @@ async function bootstrap(): Promise<void> {
     proxyService,
   } = createCoreDesktopRuntime(db, {
     applicationMode: resolveApplicationMode(app.isPackaged, process.env['NODE_ENV']),
+    cloudApiUrl: config.cloudApiUrl,
   });
 
   await browserRuntime.initialize();

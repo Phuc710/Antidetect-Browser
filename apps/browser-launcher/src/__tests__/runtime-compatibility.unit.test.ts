@@ -446,20 +446,20 @@ describe('Browser Runtime G1.1 Hardening - Unit Tests', () => {
 
     describe('PlaywrightProcessLauncher', () => {
         it('passes exact executablePath parameter into playwright launch options', async () => {
-            const mockLaunchServer = vi.fn().mockResolvedValue({
-                process: () => ({ pid: 1234 }),
-                wsEndpoint: () => 'ws://...',
+            const mockContext = {
                 on: vi.fn(),
-            });
+                close: vi.fn().mockResolvedValue(undefined),
+            };
+            const mockLaunchPersistentContext = vi.fn().mockResolvedValue(mockContext);
             vi.doMock('playwright', () => ({
                 chromium: {
-                    launchServer: mockLaunchServer,
+                    launchPersistentContext: mockLaunchPersistentContext,
                 },
             }));
 
             const launcher = new PlaywrightProcessLauncher();
             const plan: any = {
-                runtime: { engine: 'chromium' },
+                runtime: { engine: 'chromium', userDataDir: '/tmp/profile', headless: true },
                 nativeArgs: [],
                 proxy: undefined,
             };
@@ -469,7 +469,9 @@ describe('Browser Runtime G1.1 Hardening - Unit Tests', () => {
             } as any;
 
             await launcher.launch(plan, resolvedRuntime);
-            expect(mockLaunchServer).toHaveBeenCalledWith(
+            // userDataDir is the first positional arg; executablePath is in the options object
+            expect(mockLaunchPersistentContext).toHaveBeenCalledWith(
+                '/tmp/profile',
                 expect.objectContaining({
                     executablePath: '/custom/path/to/chrome.exe',
                 }),
