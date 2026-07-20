@@ -12,6 +12,7 @@ export type LauncherErrorCode =
   | 'LAUNCHER_NOT_READY'
   | 'LAUNCHER_TIMEOUT'
   | 'LAUNCHER_CRASHED'
+  | 'INVALID_COMMAND'
   | 'UNKNOWN_ERROR';
 
 export interface SerializedLauncherError {

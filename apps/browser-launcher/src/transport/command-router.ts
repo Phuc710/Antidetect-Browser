@@ -8,67 +8,75 @@ import { BrowserRuntimeRegistry } from '../runtime-compatibility/browser-runtime
 import type { ProcessTransport } from './process-transport.js';
 
 export class CommandRouter {
-  private isInitialized = false;
+    private isInitialized = false;
 
-  constructor(
-    private readonly launchOrchestrator: BrowserLaunchOrchestrator,
-    private readonly stopOrchestrator: BrowserStopOrchestrator,
-    private readonly shutdownOrchestrator: ShutdownOrchestrator,
-    private readonly registry: SessionRegistry,
-    private readonly transport: ProcessTransport,
-    private readonly runtimeRegistry: BrowserRuntimeRegistry,
-  ) {}
+    constructor(
+        private readonly launchOrchestrator: BrowserLaunchOrchestrator,
+        private readonly stopOrchestrator: BrowserStopOrchestrator,
+        private readonly shutdownOrchestrator: ShutdownOrchestrator,
+        private readonly registry: SessionRegistry,
+        private readonly transport: ProcessTransport,
+        private readonly runtimeRegistry: BrowserRuntimeRegistry,
+    ) {}
 
-  async route(cmd: LauncherCommand): Promise<void> {
-    const { type, requestId } = cmd;
+    async route(cmd: LauncherCommand): Promise<void> {
+        const { type, requestId } = cmd;
 
-    switch (type) {
-      case 'launcher:initialize': {
-        const root = cmd.payload.runtimesRoot || process.env.BROWSER_RUNTIMES_ROOT || './runtimes';
-        const manifest = cmd.payload.runtimesManifest || process.env.BROWSER_RUNTIMES_MANIFEST || './runtimes.json';
-        await this.runtimeRegistry.initialize(root, manifest);
-        
-        this.isInitialized = true;
-        this.transport.sendSuccess(requestId);
-        break;
-      }
+        switch (type) {
+            case 'launcher:initialize': {
+                const root =
+                    cmd.payload.runtimesRoot ||
+                    process.env.BROWSER_RUNTIMES_ROOT ||
+                    './runtimes';
+                const manifest =
+                    cmd.payload.runtimesManifest ||
+                    process.env.BROWSER_RUNTIMES_MANIFEST ||
+                    './runtimes.json';
+                await this.runtimeRegistry.initialize(root, manifest);
 
-      case 'profile:launch': {
-        if (!this.isInitialized) {
-          throw new Error('Launcher is not initialized yet.');
+                this.isInitialized = true;
+                this.transport.sendSuccess(requestId);
+                break;
+            }
+
+            case 'profile:launch': {
+                if (!this.isInitialized) {
+                    throw new Error('Launcher is not initialized yet.');
+                }
+                const result = await this.launchOrchestrator.execute(
+                    cmd.payload,
+                );
+                this.transport.sendSuccess(requestId, result);
+                break;
+            }
+
+            case 'profile:stop': {
+                if (!this.isInitialized) {
+                    throw new Error('Launcher is not initialized yet.');
+                }
+                await this.stopOrchestrator.execute(cmd.payload.sessionId);
+                this.transport.sendSuccess(requestId);
+                break;
+            }
+
+            case 'runtime:snapshot': {
+                const { sequence, sessions } = this.registry.createSnapshot();
+                this.transport.sendSuccess(requestId, {
+                    snapshotSequence: sequence,
+                    capturedAt: new Date().toISOString(),
+                    sessions,
+                });
+                break;
+            }
+
+            case 'launcher:shutdown': {
+                await this.shutdownOrchestrator.execute();
+                this.transport.sendSuccess(requestId);
+                break;
+            }
+
+            default:
+                throw new Error(`Unsupported command type: ${type}`);
         }
-        const result = await this.launchOrchestrator.execute(cmd.payload);
-        this.transport.sendSuccess(requestId, result);
-        break;
-      }
-
-      case 'profile:stop': {
-        if (!this.isInitialized) {
-          throw new Error('Launcher is not initialized yet.');
-        }
-        await this.stopOrchestrator.execute(cmd.payload.sessionId);
-        this.transport.sendSuccess(requestId);
-        break;
-      }
-
-      case 'runtime:snapshot': {
-        const { sequence, sessions } = this.registry.createSnapshot();
-        this.transport.sendSuccess(requestId, {
-          snapshotSequence: sequence,
-          capturedAt: new Date().toISOString(),
-          sessions,
-        });
-        break;
-      }
-
-      case 'launcher:shutdown': {
-        await this.shutdownOrchestrator.execute();
-        this.transport.sendSuccess(requestId);
-        break;
-      }
-
-      default:
-        throw new Error(`Unsupported command type: ${type}`);
     }
-  }
 }

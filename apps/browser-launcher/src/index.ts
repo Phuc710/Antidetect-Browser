@@ -16,31 +16,39 @@ const runtimeRegistry = new BrowserRuntimeRegistry();
 let router: CommandRouter;
 
 const transport = new ProcessTransport(async (cmd) => {
-  await router.route(cmd);
+    await router.route(cmd);
 });
 
 const cookieSyncCoordinator = new CookieSyncCoordinator(transport);
-const lifecycleManager = new SessionLifecycleManager(registry, lockManager, cookieSyncCoordinator, transport);
-
-const launchOrchestrator = new BrowserLaunchOrchestrator(
-  registry,
-  lockManager,
-  lifecycleManager,
-  cookieSyncCoordinator,
-  transport,
-  runtimeRegistry
+const lifecycleManager = new SessionLifecycleManager(
+    registry,
+    lockManager,
+    cookieSyncCoordinator,
+    transport,
 );
 
-const stopOrchestrator = new BrowserStopOrchestrator(registry, lifecycleManager);
+const launchOrchestrator = new BrowserLaunchOrchestrator(
+    registry,
+    lockManager,
+    lifecycleManager,
+    cookieSyncCoordinator,
+    transport,
+    runtimeRegistry,
+);
+
+const stopOrchestrator = new BrowserStopOrchestrator(
+    registry,
+    lifecycleManager,
+);
 const shutdownOrchestrator = new ShutdownOrchestrator(lifecycleManager);
 
 router = new CommandRouter(
-  launchOrchestrator,
-  stopOrchestrator,
-  shutdownOrchestrator,
-  registry,
-  transport,
-  runtimeRegistry
+    launchOrchestrator,
+    stopOrchestrator,
+    shutdownOrchestrator,
+    registry,
+    transport,
+    runtimeRegistry,
 );
 
 // Listen to parent message loop

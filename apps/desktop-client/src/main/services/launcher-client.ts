@@ -1,7 +1,7 @@
-import { fork, ChildProcess } from 'child_process';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
-import fs from 'fs';
+import { fork, ChildProcess } from 'node:child_process';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
 import type { BrowserRuntimePort, BrowserSession, LaunchOptions } from './browser-runtime-port.js';
 import type {
   LauncherCommand,
@@ -65,7 +65,7 @@ export class LauncherClient implements BrowserRuntimePort {
     {
       resolve: (value: any) => void;
       reject: (error: Error) => void;
-      timeout: NodeJS.Timeout;
+      timeout: ReturnType<typeof setTimeout>;
     }
   >();
   private listeners = new Set<(event: ProfileRuntimeEvent) => void>();
@@ -84,7 +84,7 @@ export class LauncherClient implements BrowserRuntimePort {
   private readonly applicationMode: ApplicationMode;
   private readonly deviceId: string;
   private readonly launcherScriptPath?: string | undefined;
-  private readonly pendingCookieUpdates = new Map<string, { cookies: string; timeout: NodeJS.Timeout }>();
+  private readonly pendingCookieUpdates = new Map<string, { cookies: string; timeout: ReturnType<typeof setTimeout> }>();
   private readonly runtimesRoot?: string | undefined;
   private readonly runtimesManifest?: string | undefined;
 
@@ -115,7 +115,10 @@ export class LauncherClient implements BrowserRuntimePort {
     }
 
     this.readyPromise = new Promise<void>((resolve, reject) => {
-      const defaultScriptPath = join(__dirname, '../../../../browser-launcher/dist/index.js');
+      let defaultScriptPath = join(__dirname, '../../../browser-launcher/dist/index.js');
+      if (!fs.existsSync(defaultScriptPath)) {
+        defaultScriptPath = join(__dirname, '../../../../browser-launcher/dist/index.js');
+      }
       const scriptPath = this.launcherScriptPath ?? defaultScriptPath;
 
       logger.info(`Spawning launcher child process at path: ${scriptPath}`);
@@ -234,10 +237,14 @@ export class LauncherClient implements BrowserRuntimePort {
         try {
           const payload = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
           let isAlive = false;
-          try {
-            process.kill(payload.ownerProcessId, 0);
-            isAlive = true;
-          } catch {}
+          if (payload && typeof payload === 'object' && typeof payload.ownerProcessId === 'number') {
+            try {
+              process.kill(payload.ownerProcessId, 0);
+              isAlive = true;
+            } catch {
+              // Process is not alive or no permission to check
+            }
+          }
           if (isAlive) {
             lockState = 'owned_by_live_process';
           } else {

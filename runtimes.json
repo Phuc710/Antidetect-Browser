@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "runtimes": [
+    {
+      "id": "playwright-chromium-1228-latest",
+      "engine": "chromium",
+      "distribution": "chromium",
+      "channel": "stable",
+      "version": "latest",
+      "architecture": "x64",
+      "platform": "win32",
+      "relativeExecutablePath": "chromium-1228/chrome-win64/chrome.exe"
+    }
+  ]
+}

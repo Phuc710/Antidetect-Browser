@@ -282,3 +282,29 @@ Không có file nào bị sửa trong lần audit này.
 
 
 pnpm --filter desktop-client dev
+taskkill /f /im electron.exe
+
+
+
+Phân tích nguyên nhân và Khắc phục lỗi:
+runtimes.json không tồn tại: Thư viện BrowserRuntimeRegistry yêu cầu tệp tin mô tả runtimes hợp lệ khi khởi tạo.
+Tôi đã tạo một tệp tin cấu hình 
+
+runtimes.json
+ mẫu ở thư mục gốc của dự án.
+Tệp này ánh xạ tới phiên bản Chromium hiện tại đang có sẵn trong thư mục Playwright của bạn (C:\Users\Phucx\AppData\Local\ms-playwright\chromium-1228\chrome-win64\chrome.exe).
+Cấu hình này chỉ đăng ký duy nhất một phiên bản 'latest' để tránh lỗi trùng lặp đường dẫn thực thi đã được tối ưu hóa ở Phase G1.1.
+Cập nhật Biến Môi trường trong .env: Tôi đã khai báo đường dẫn thư mục gốc và tệp manifest cho runtimes bên trong 
+
+apps/desktop-client/.env
+:
+env
+BROWSER_RUNTIMES_ROOT=C:\Users\Phucx\AppData\Local\ms-playwright
+BROWSER_RUNTIMES_MANIFEST=C:\Users\Phucx\Desktop\fingerprint-suite\runtimes.json
+Các biến môi trường này sẽ được truyền một cách an toàn vào tiến trình launcher con khi nó được khởi tạo.
+2. Kết quả Chạy Thử (Bootstrap Verified):
+Khi chạy pnpm --filter desktop-client dev:
+
+Hệ thống cơ sở dữ liệu SQLite được khởi tạo chính xác: Database initialized at AppData\Roaming\desktop-client\data\app.db.
+Tiến trình con của launcher được fork thành công từ file logic đã sửa lỗi đường dẫn: Spawning launcher child process at path: apps\browser-launcher\dist\index.js.
+Cửa sổ Electron chính (Main window shown) hiển thị giao diện Desktop của bạn mà không gặp bất kỳ lỗi Crash hay Module/Bootstrap Error nào.
