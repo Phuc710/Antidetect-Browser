@@ -35,39 +35,43 @@ export class PlaywrightProcessLauncher {
         const closeListeners = new Set<(exitCode?: number) => void>();
         let intentionallyClosed = false;
 
-        // Build Chromium arguments list
+        // Build Chromium arguments list.
+        // NOTE: --user-data-dir must NOT be here — it is passed as the first argument
+        // to launchPersistentContext. Playwright throws if it appears in args.
         const args = [
             ...plan.nativeArgs,
             `--remote-debugging-port=${port}`,
             '--remote-debugging-address=127.0.0.1',
         ];
 
-        const server = await playwright.chromium.launchServer({
-            executablePath: resolvedRuntime.executablePath,
-            headless: plan.runtime.headless,
-            ...(plan.proxy ? { proxy: plan.proxy } : {}),
-            args,
-        });
+        // Use launchPersistentContext so Chromium boots with the profile's
+        // user-data directory. This is the only Playwright API that accepts
+        // userDataDir natively while still opening a remote-debugging port
+        // that PlaywrightRuntimeAdapter can connect to via connectOverCDP.
+        const context = await playwright.chromium.launchPersistentContext(
+            plan.runtime.userDataDir,
+            {
+                executablePath: resolvedRuntime.executablePath,
+                headless: plan.runtime.headless,
+                ...(plan.proxy ? { proxy: plan.proxy } : {}),
+                args,
+            },
+        );
 
-        const { pid } = server.process();
-        if (!pid) {
-            throw Object.assign(
-                new Error('Chromium did not expose a process ID.'),
-                {
-                    code: 'LAUNCH_FAILED',
-                },
-            );
-        }
-
-        server.on('close', () => {
+        context.on('close', () => {
             if (!intentionallyClosed) {
                 closeListeners.forEach((listener) => listener());
             }
         });
 
+        // launchPersistentContext does not expose the browser OS process handle.
+        // We use the launcher child-process pid as a stable non-zero identifier
+        // for the profile lock owner check.
+        const pid = process.pid;
+
         return {
             pid,
-            wsEndpoint: server.wsEndpoint(),
+            wsEndpoint: '',
             automation: {
                 protocol: 'cdp',
                 endpoint: `http://127.0.0.1:${port}`,
@@ -75,7 +79,7 @@ export class PlaywrightProcessLauncher {
             stop: async () => {
                 if (intentionallyClosed) return;
                 intentionallyClosed = true;
-                await server.close();
+                await context.close();
             },
             onExit: (listener) => {
                 closeListeners.add(listener);

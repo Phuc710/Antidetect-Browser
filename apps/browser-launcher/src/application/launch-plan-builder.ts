@@ -80,7 +80,6 @@ export class LaunchPlanBuilder {
                 ?.screen?.height;
 
         const nativeArgs: string[] = [
-            `--user-data-dir=${payload.userDataDir}`,
             '--disable-blink-features=AutomationControlled',
         ];
 

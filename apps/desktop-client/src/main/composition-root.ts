@@ -27,10 +27,32 @@ export interface CoreDesktopRuntimeOptions {
   applicationMode?: ApplicationMode;
   cloudFingerprintTransport?: AuthenticatedTransportClient;
   productionFingerprintPublicKeys?: FingerprintPublicKeyBundle;
+  cloudApiUrl?: string;
   browserOptions?: Omit<
     LauncherClientOptions,
     'fingerprintProvider' | 'fingerprintValidator'
   >;
+}
+
+class DefaultCloudFingerprintTransport implements AuthenticatedTransportClient {
+  constructor(private readonly baseUrl: string) {}
+
+  async post(path: string, body: Readonly<Record<string, string>>): Promise<unknown> {
+    const url = new URL(path, this.baseUrl).toString();
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Cloud API request failed with status ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
 }
 
 export function resolveApplicationMode(
@@ -60,12 +82,19 @@ export function createCoreDesktopRuntime(
     ? (options.productionFingerprintPublicKeys ?? PRODUCTION_FINGERPRINT_PUBLIC_KEYS)
     : { [developmentSigningMaterial!.keyId]: developmentSigningMaterial!.publicKey };
   const fingerprintValidator = new FingerprintEnvelopeValidator(publicKeys, applicationMode);
+  
+  const cloudApiUrl = options.cloudApiUrl;
+  if (applicationMode === 'production' && !options.cloudFingerprintTransport && !cloudApiUrl) {
+    throw new Error('Missing required cloudApiUrl or cloudFingerprintTransport configuration in production mode.');
+  }
+
+  const cloudTransport = options.cloudFingerprintTransport
+    ?? (cloudApiUrl ? new DefaultCloudFingerprintTransport(cloudApiUrl) : undefined);
+
   const fingerprintProvider = createFingerprintProvider({
     mode: applicationMode,
     validator: fingerprintValidator,
-    ...(options.cloudFingerprintTransport
-      ? { cloudTransport: options.cloudFingerprintTransport }
-      : {}),
+    ...(cloudTransport ? { cloudTransport } : {}),
     ...(developmentSigningMaterial ? { developmentSigningMaterial } : {}),
   });
   const proxyService = new ProxyService(databaseService);

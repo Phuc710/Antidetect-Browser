@@ -179,6 +179,14 @@ export class LauncherClient implements BrowserRuntimePort {
         if (event.type === 'runtime:changed') {
           const { browserSessionId, state, occurredAt, errorCode } = event.payload;
           try {
+            // The parent already inserted the session in 'validating' state and
+            // published that event to the UI before sending the launch command.
+            // The child also emits 'validating' as its first state notification.
+            // Skip the transition if the session is already in this state to
+            // prevent a duplicate event reaching the renderer.
+            const current = this.sessionRepository.findById(browserSessionId);
+            if (current && current.state === state && state === 'validating') return;
+
             const dbEvent = this.sessionRepository.transition(
               browserSessionId,
               state,
@@ -402,8 +410,10 @@ export class LauncherClient implements BrowserRuntimePort {
       },
     };
 
-    // Insert database session prior to command routing
-    this.sessionRepository.create({
+    // Insert database session prior to command routing and immediately notify
+    // the renderer so the UI transitions to 'validating' without waiting for
+    // the child-process round-trip.
+    const validatingEvent = this.sessionRepository.create({
       id: sessionId,
       profileId: options.profileId,
       deviceId: this.deviceId,
@@ -416,6 +426,7 @@ export class LauncherClient implements BrowserRuntimePort {
       browserVersion: descriptor.browserVersion,
       architecture: descriptor.architecture,
     });
+    this.publish(validatingEvent);
 
     if (resolvedFingerprint.shouldCache) {
       try {
