@@ -392,23 +392,21 @@ export class LocalApiService {
         res.end(JSON.stringify(responseData));
     }
 
+    private formatSessionAutomation(automation?: { protocol: string; endpoint?: string } | undefined) {
+        if (!automation) return null;
+        return {
+            protocol: automation.protocol,
+            endpoint: automation.endpoint ?? undefined,
+        };
+    }
+
     private handleListSessions(res: http.ServerResponse) {
         const sessions = this.browserService.listActive().map((s) => ({
             sessionId: s.sessionId,
             profileId: s.profileId,
             engine: s.engine,
             status: s.state,
-            automation: {
-                protocol: s.automation.protocol,
-                endpoint:
-                    s.automation.protocol === 'cdp'
-                        ? s.automation.endpoint
-                        : undefined,
-                port:
-                    s.automation.protocol === 'marionette'
-                        ? (s.automation as any).port
-                        : undefined,
-            },
+            automation: this.formatSessionAutomation(s.automation),
             startedAt: s.startedAt,
         }));
 
@@ -432,17 +430,7 @@ export class LocalApiService {
             profileId: s.profileId,
             engine: s.engine,
             status: s.state,
-            automation: {
-                protocol: s.automation.protocol,
-                endpoint:
-                    s.automation.protocol === 'cdp'
-                        ? s.automation.endpoint
-                        : undefined,
-                port:
-                    s.automation.protocol === 'marionette'
-                        ? (s.automation as any).port
-                        : undefined,
-            },
+            automation: this.formatSessionAutomation(s.automation),
             startedAt: s.startedAt,
         };
 
@@ -482,17 +470,7 @@ export class LocalApiService {
                         profileId: session.profileId,
                         engine: session.engine,
                         status: session.state,
-                        automation: {
-                            protocol: session.automation.protocol,
-                            endpoint:
-                                session.automation.protocol === 'cdp'
-                                    ? session.automation.endpoint
-                                    : undefined,
-                            port:
-                                session.automation.protocol === 'marionette'
-                                    ? (session.automation as any).port
-                                    : undefined,
-                        },
+                        automation: this.formatSessionAutomation(session.automation),
                         startedAt: session.startedAt,
                     },
                 }),

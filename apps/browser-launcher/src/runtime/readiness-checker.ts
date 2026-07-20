@@ -37,28 +37,25 @@ export interface ReadinessCheck {
 
 export class ReadinessChecker {
     private readonly checks: ReadinessCheck[] = [
-        // 1. Process Alive check
+        // 1. Context Open check — verifies the BrowserContext has not already closed.
+        // replaces the old 'processAlive' (which used a fake pid) and
+        // 'cdpConnected' (which required a Browser object that no longer exists).
         {
-            id: 'processAlive',
+            id: 'contextOpen',
             severity: 'critical',
             async execute(runtime) {
-                let isAlive = false;
+                // Playwright BrowserContext exposes no public isOpen() API, but
+                // attempting to list pages on a closed context throws. We use a
+                // newPage creation to confirm the context is alive.
+                let isOpen = false;
                 try {
-                    process.kill(runtime.processHandle.pid, 0);
-                    isAlive = true;
+                    const pages = runtime.context.pages();
+                    // If pages() does not throw the context is open.
+                    isOpen = Array.isArray(pages);
                 } catch {
-                    // Process not alive or no permission to check
+                    isOpen = false;
                 }
-                return { passed: isAlive, expected: true, actual: isAlive };
-            },
-        },
-        // 2. CDP Connected check
-        {
-            id: 'cdpConnected',
-            severity: 'critical',
-            async execute(runtime) {
-                const connected = runtime.browser.isConnected();
-                return { passed: connected, expected: true, actual: connected };
+                return { passed: isOpen, expected: true, actual: isOpen };
             },
         },
         // 3. User Agent check

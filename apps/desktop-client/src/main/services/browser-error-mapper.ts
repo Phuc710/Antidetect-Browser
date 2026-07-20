@@ -14,6 +14,8 @@ const FAILURES: Readonly<Record<string, Omit<SafeBrowserFailure, 'code'>>> = Obj
   BROWSER_ENGINE_UNAVAILABLE: { message: 'The configured browser engine is unavailable.', httpStatus: 422 },
   BROWSER_DISTRIBUTION_UNAVAILABLE: { message: 'The configured browser distribution is unavailable.', httpStatus: 422 },
   BROWSER_AUTOMATION_PROTOCOL_UNAVAILABLE: { message: 'The requested automation protocol is unavailable.', httpStatus: 422 },
+  BROWSER_LAUNCH_FAILED: { message: 'Chromium could not be launched.', httpStatus: 500 },
+  RUNTIME_NOT_FOUND: { message: 'No compatible browser runtime was found.', httpStatus: 422 },
   SESSION_NOT_FOUND: { message: 'Browser session not found.', httpStatus: 404 },
   LAUNCH_FAILED: { message: 'Browser launch failed.', httpStatus: 500 },
   FINGERPRINT_SERVICE_UNAVAILABLE: { message: 'The fingerprint service is unavailable.', httpStatus: 503 },
@@ -37,11 +39,14 @@ export function safeBrowserFailure(error: unknown): SafeBrowserFailure {
   const known = FAILURES[candidate];
   if (!known) {
     console.error('[safeBrowserFailure] Unknown or unmapped error caught:', error);
-    const isDev = process.env.NODE_ENV === 'development';
+    const isDev = process.env['NODE_ENV'] === 'development';
+    const stage = error instanceof Error && 'stage' in error
+      ? String((error as Error & { stage?: unknown }).stage)
+      : undefined;
     return {
       code: 'INTERNAL_ERROR',
       message: isDev && error instanceof Error
-        ? `${error.message}${ (error as any).stage ? ` (at stage: ${(error as any).stage})` : '' }`
+        ? `${error.message}${stage ? ` (at stage: ${stage})` : ''}`
         : 'The operation could not be completed.',
       httpStatus: 500
     };

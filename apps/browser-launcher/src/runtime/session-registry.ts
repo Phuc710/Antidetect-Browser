@@ -14,7 +14,12 @@ import { PlaywrightRuntimeAdapter } from './playwright-runtime-adapter.js';
 export interface BrowserSession {
     readonly sessionId: string;
     readonly profileId: string;
-    readonly pid: number;
+    /**
+     * Chromium OS process ID, if available.
+     * launchPersistentContext does not expose the OS PID through public APIs,
+     * so this is undefined for persistent-context sessions.
+     */
+    readonly browserPid?: number | undefined;
     state: ProfileRuntimeState;
     readonly startedAt: string;
     readonly engine: BrowserEngine;
@@ -22,10 +27,14 @@ export interface BrowserSession {
     readonly channel: BrowserChannel;
     readonly browserVersion: string;
     readonly architecture: BrowserArchitecture;
-    readonly automation: {
-        readonly protocol: AutomationProtocol;
-        readonly endpoint: string;
-    };
+    /**
+     * External automation endpoint, if applicable.
+     * Undefined for persistent-context sessions (internal Playwright control
+     * does not create a public external CDP endpoint).
+     */
+    readonly automation?:
+        | { readonly protocol: AutomationProtocol; readonly endpoint?: string }
+        | undefined;
     readonly browserHandle: PlaywrightRuntimeAdapter;
 }
 
@@ -90,7 +99,9 @@ export class SessionRegistry {
             state: s.state,
             occurredAt: new Date().toISOString(),
             startedAt: s.startedAt,
-            processId: s.pid,
+            // processId omitted when not available — callers that map to DB
+            // persist NULL for unavailable PID per truthfulness contract.
+            ...(s.browserPid !== undefined ? { processId: s.browserPid } : {}),
             engine: s.engine,
             distribution: s.distribution,
             channel: s.channel,

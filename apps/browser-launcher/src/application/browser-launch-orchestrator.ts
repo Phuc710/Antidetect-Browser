@@ -1,4 +1,4 @@
-import type { LaunchProfilePayload } from 'shared';
+import type { LaunchProfilePayload, ProfileRuntimeState } from 'shared';
 
 import { CookieSyncCoordinator } from '../cookies/cookie-sync-coordinator.js';
 import { LauncherError } from '../errors/launcher-error.js';
@@ -78,17 +78,18 @@ export class BrowserLaunchOrchestrator {
         private readonly runtimeRegistry: BrowserRuntimeRegistry,
     ) {}
 
-    async execute(payload: LaunchProfilePayload): Promise<any> {
+    async execute(payload: LaunchProfilePayload): Promise<Record<string, unknown>> {
         const plan = this.launchPlanBuilder.build(payload);
         const scope = new LaunchCleanupScope(plan.identity, this.lockManager);
         let currentStage = 'initialize';
         let resolvedExecutablePath = '';
 
         try {
-            // 1. Validating State Change Event
-            this.publishState(plan, 'validating', 1);
+            // NOTE: Desktop Main creates the durable session record in 'validating'
+            // state and publishes the event to the renderer before sending this
+            // command. The child does NOT re-emit 'validating' to avoid duplicates.
 
-            // Verify profile is not already running
+            // 1. Verify profile is not already running
             if (this.registry.getByProfileId(plan.identity.profileId)) {
                 throw LauncherError.profileAlreadyRunning(
                     plan.identity.profileId,
@@ -108,10 +109,11 @@ export class BrowserLaunchOrchestrator {
                 },
             );
             resolvedExecutablePath = resolvedRuntime.executablePath;
-            console.log(`[STAGE:${currentStage}] Resolved executable path successfully: ${resolvedExecutablePath}`);
+            console.log(`[STAGE:${currentStage}] Resolved executable: ${resolvedExecutablePath}`);
 
-            // 3. Acquiring Locks
+            // 3. Acquire durable profile lock
             currentStage = 'acquire_lock';
+            this.publishState(plan, 'acquiring_lock', 2);
             console.log(`[STAGE:${currentStage}] Acquiring durable file lock for profile ${plan.identity.profileId}...`);
             this.lockManager.acquireDurableLock(
                 plan.identity.profileId,
@@ -119,82 +121,92 @@ export class BrowserLaunchOrchestrator {
                 plan.identity.sessionId,
             );
             scope.markLockAcquired();
-            console.log(`[STAGE:${currentStage}] Durable lock acquired successfully.`);
+            console.log(`[STAGE:${currentStage}] Durable lock acquired.`);
 
             // 4. Preparing configuration
             currentStage = 'preparing';
             this.publishState(plan, 'preparing', 3);
 
-            // 5. Launching native process with resolved executable path
+            // 5. Launch persistent Chromium context
             currentStage = 'chromium_launch';
-            console.log(`[STAGE:${currentStage}] Spawning native Chromium process at: ${resolvedExecutablePath}...`);
+            console.log(`[STAGE:${currentStage}] Launching Chromium with persistent context at: ${resolvedExecutablePath}...`);
             const processHandle = await this.processLauncher.launch(
                 plan,
                 resolvedRuntime,
             );
             scope.setProcessHandle(processHandle);
-            console.log(`[STAGE:${currentStage}] Native browser process spawned. PID: ${processHandle.pid}`);
+            console.log(`[STAGE:${currentStage}] Chromium persistent context opened.`);
 
-            // 6. Starting & Connecting context
-            currentStage = 'cdp_connect';
+            // 6. Build runtime adapter from the returned context (no CDP reconnect)
+            currentStage = 'starting';
             this.publishState(plan, 'starting', 4);
-            console.log(`[STAGE:${currentStage}] Connecting Playwright CDP client to debugging port...`);
-            const runtime = await PlaywrightRuntimeAdapter.connect(
+            const runtime = PlaywrightRuntimeAdapter.fromContext(
                 processHandle,
                 this.fingerprintService,
             );
             scope.setRuntime(runtime);
-            console.log(`[STAGE:${currentStage}] Playwright client connected.`);
 
-            // Inject cookies if present
+            // 7. Restore cookies before any page navigates
             if (plan.cookies.length > 0) {
                 currentStage = 'cookie_injection';
-                console.log(`[STAGE:${currentStage}] Injecting ${plan.cookies.length} cookies into browser context...`);
-                await runtime.injectCookies(plan.cookies);
-                console.log(`[STAGE:${currentStage}] Cookies injected.`);
+                console.log(`[STAGE:${currentStage}] Restoring ${plan.cookies.length} cookies...`);
+                // Playwright's Cookie type requires path:string. ValidatedCookie.path
+                // is optional — default to '/' (the standard HTTP cookie default).
+                const playwrightCookies = plan.cookies.map((c) => ({
+                    ...c,
+                    path: c.path ?? '/',
+                }));
+                await runtime.injectCookies(playwrightCookies);
+                console.log(`[STAGE:${currentStage}] Cookies restored.`);
             }
 
-            // 7. Applying Fingerprint & Verification
+            // 8. Register fingerprint init scripts before pages execute
             currentStage = 'fingerprint_injection';
-            console.log(`[STAGE:${currentStage}] Injecting fingerprint configuration and anti-detect hooks...`);
+            console.log(`[STAGE:${currentStage}] Registering fingerprint configuration...`);
             await runtime.applyFingerprint(
                 plan.fingerprint.fingerprintWithHeaders,
                 plan.fingerprint.markerScript,
             );
-            console.log(`[STAGE:${currentStage}] Fingerprint injection complete.`);
+            console.log(`[STAGE:${currentStage}] Fingerprint registered.`);
 
+            // 9. Readiness verification
             currentStage = 'readiness';
-            console.log(`[STAGE:${currentStage}] Running readiness verification check page...`);
+            console.log(`[STAGE:${currentStage}] Running readiness checks...`);
             const readinessReport = await this.readinessChecker.verify(
                 runtime,
                 plan,
             );
             if (!readinessReport.ready) {
+                const failedChecks = readinessReport.checks
+                    .filter((c) => !c.passed && c.severity === 'critical')
+                    .map((c) => c.id);
                 throw LauncherError.readinessFailed({
-                    report: readinessReport,
-                } as any);
+                    failedChecks,
+                    durationMs: readinessReport.durationMs,
+                });
             }
-            console.log(`[STAGE:${currentStage}] Readiness verification check passed.`);
+            console.log(`[STAGE:${currentStage}] Readiness verification passed.`);
 
+            const startedAt = new Date().toISOString();
             const session: BrowserSession = {
                 sessionId: plan.identity.sessionId,
                 profileId: plan.identity.profileId,
-                pid: processHandle.pid,
+                // browserPid is undefined for persistent-context launch â€”
+                // launchPersistentContext does not expose the OS PID.
+                browserPid: processHandle.browserPid,
                 state: 'running',
-                startedAt: new Date().toISOString(),
+                startedAt,
                 engine: plan.runtime.engine,
                 distribution: plan.runtime.distribution,
                 channel: plan.runtime.channel,
                 browserVersion: plan.runtime.browserVersion,
                 architecture: plan.runtime.architecture,
-                automation: {
-                    protocol: processHandle.automation.protocol,
-                    endpoint: processHandle.automation.endpoint,
-                },
+                // No external automation endpoint for persistent-context sessions.
+                automation: undefined,
                 browserHandle: runtime,
             };
 
-            // 8. Handing off running session
+            // 10. Hand off running session
             this.registry.add(session);
             this.lifecycleManager.watch(session);
             this.cookieSyncCoordinator.start(session);
@@ -205,26 +217,43 @@ export class BrowserLaunchOrchestrator {
                 sessionId: plan.identity.sessionId,
                 profileId: plan.identity.profileId,
                 state: 'running',
-                pid: processHandle.pid,
-                automation: session.automation,
-                startedAt: session.startedAt,
+                // Truthful metadata: PID and automation endpoint are not available.
+                browserPid: processHandle.browserPid ?? null,
+                automation: null,
+                startedAt,
             };
-        } catch (error: any) {
-            console.error(`[LAUNCH_ERROR] Failed at stage: ${currentStage}`, error);
-            if (error && typeof error === 'object') {
-                error.stage = currentStage;
+        } catch (err: unknown) {
+            const stage = currentStage;
+            console.error(`[LAUNCH_ERROR] Failed at stage: ${stage}`, err);
+
+            // Wrap unknown errors as BROWSER_LAUNCH_FAILED for clean IPC serialization.
+            if (err instanceof Error && !('code' in err)) {
+                const wrapped = LauncherError.browserLaunchFailed(err.message, {
+                    stage,
+                    ...(resolvedExecutablePath ? { executablePath: resolvedExecutablePath } : {}),
+                });
+                (wrapped as Error & { cause?: unknown }).cause = err;
+                await scope.cleanup();
+                throw wrapped;
+            }
+
+            // For LauncherError or errors already carrying a typed code, attach stage
+            // details without losing the typed code.
+            if (err instanceof Error && 'code' in err) {
+                (err as Error & { stage?: string }).stage = stage;
                 if (resolvedExecutablePath) {
-                    error.executablePath = resolvedExecutablePath;
+                    (err as Error & { executablePath?: string }).executablePath = resolvedExecutablePath;
                 }
             }
+
             await scope.cleanup();
-            throw error;
+            throw err;
         }
     }
 
     private publishState(
         plan: BrowserLaunchPlan,
-        state: any,
+        state: ProfileRuntimeState,
         sequence: number,
     ) {
         this.transport.send({

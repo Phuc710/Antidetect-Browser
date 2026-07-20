@@ -179,14 +179,8 @@ export class LauncherClient implements BrowserRuntimePort {
         if (event.type === 'runtime:changed') {
           const { browserSessionId, state, occurredAt, errorCode } = event.payload;
           try {
-            // The parent already inserted the session in 'validating' state and
-            // published that event to the UI before sending the launch command.
-            // The child also emits 'validating' as its first state notification.
-            // Skip the transition if the session is already in this state to
-            // prevent a duplicate event reaching the renderer.
-            const current = this.sessionRepository.findById(browserSessionId);
-            if (current && current.state === state && state === 'validating') return;
-
+            // Desktop Main owns the 'validating' event (published on session creation).
+            // The child emits acquiring_lock → preparing → starting → running.
             const dbEvent = this.sessionRepository.transition(
               browserSessionId,
               state,
@@ -558,11 +552,15 @@ export class LauncherClient implements BrowserRuntimePort {
       sessionId: record.id,
       profileId: record.profile_id,
       state: record.state,
-      pid: record.process_id ?? 0,
-      automation: record.automation_endpoint ? {
-        protocol: record.automation_protocol ?? 'cdp',
-        endpoint: record.automation_endpoint,
-      } : { protocol: 'cdp', endpoint: '' },
+      // process_id is NULL for persistent-context sessions (PID not available).
+      pid: record.process_id ?? undefined,
+      // automation is only set when a real external endpoint was persisted.
+      automation: record.automation_endpoint
+        ? {
+            protocol: record.automation_protocol ?? 'cdp',
+            endpoint: record.automation_endpoint,
+          }
+        : undefined,
       startedAt: record.started_at,
       engine: record.engine,
       distribution: record.distribution,

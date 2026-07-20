@@ -24,17 +24,13 @@ import type { IFingerprintProvider } from './fingerprint-provider.js';
 import { Logger } from './logger.js';
 import { ProfileLockManager } from './profile-lock-manager.js';
 import { ProfileStorageResolver } from './profile-storage-resolver.js';
-
 const logger = new Logger('BrowserApplicationService');
 const EVENT_BUFFER_LIMIT = 512;
-
 export const CLOUD_LEASE_STATUS = 'stub_not_configured' as const;
-
 export type AutomationConnection =
   | { protocol: 'cdp'; endpoint: string }
   | { protocol: 'webdriver'; driverPath: string; endpoint: string }
   | { protocol: 'marionette'; driverPath: string; port: number };
-
 export interface BrowserProcessHandle {
   pid: number;
   wsEndpoint: string;
@@ -42,7 +38,6 @@ export interface BrowserProcessHandle {
   stop: () => Promise<void>;
   onExit: (listener: (exitCode?: number) => void) => () => void;
 }
-
 export interface BrowserProcessLauncher {
   launch(options: BrowserRuntimeDescriptor & {
     automationProtocol: AutomationProtocol;
@@ -62,8 +57,8 @@ export interface BrowserSession extends BrowserRuntimeDescriptor {
   sessionId: string;
   profileId: string;
   state: ProfileRuntimeState;
-  pid: number;
-  automation: AutomationConnection;
+  pid?: number | undefined;
+  automation?: AutomationConnection | undefined;
   startedAt: string;
 }
 
@@ -87,7 +82,6 @@ export interface BrowserApplicationServiceOptions {
   deviceId?: string;
   resolveProxy?: (proxyId: string) => Promise<BrowserLaunchProxy>;
 }
-
 export class PlaywrightProcessLauncher implements BrowserProcessLauncher {
   async launch(
     options: BrowserRuntimeDescriptor & {
@@ -112,12 +106,10 @@ export class PlaywrightProcessLauncher implements BrowserProcessLauncher {
         code: 'BROWSER_DISTRIBUTION_UNAVAILABLE',
       });
     }
-
     const playwright = await import('playwright');
     const port = await findAvailablePort();
     const closeListeners = new Set<(exitCode?: number) => void>();
     let intentionallyClosed = false;
-
     const server = await playwright.chromium.launchServer({
       headless: options.headless,
       ...(options.proxy ? { proxy: options.proxy } : {}),
@@ -148,7 +140,6 @@ export class PlaywrightProcessLauncher implements BrowserProcessLauncher {
     };
   }
 }
-
 async function findAvailablePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -161,25 +152,21 @@ async function findAvailablePort(): Promise<number> {
     });
   });
 }
-
 interface ActiveSession {
   view: BrowserSession;
   runtime: BrowserRuntimeSession;
   removeExitListener: () => void;
 }
-
 interface PendingSession {
   cancelRequested: boolean;
   processHandle?: BrowserProcessHandle;
   runtime?: BrowserRuntimeSession;
 }
-
 interface ResolvedPreparedFingerprint {
   readonly prepared: PreparedFingerprintInjection;
   readonly envelope: Parameters<typeof mapFingerprintEnvelope>[0];
   readonly shouldCache: boolean;
 }
-
 export class BrowserApplicationService {
   private readonly sessionRepository: BrowserSessionRepository;
   private readonly profileRepository: ProfileRepository;
@@ -201,7 +188,6 @@ export class BrowserApplicationService {
   private readonly eventBuffer: ProfileRuntimeEvent[] = [];
   private readonly stoppingSessions = new Set<string>();
   private readonly pendingSessions = new Map<string, PendingSession>();
-
   constructor(db: DatabaseConnectionProvider, options: BrowserApplicationServiceOptions) {
     const connection = db.getConnection();
     this.sessionRepository = new BrowserSessionRepository(connection);
@@ -220,7 +206,6 @@ export class BrowserApplicationService {
     this.deviceId = options.deviceId ?? 'local_device';
     this.resolveProxy = options.resolveProxy;
   }
-
   recoverCrashedSessions(): number {
     let recovered = 0;
     for (const session of this.sessionRepository.listActive()) {
@@ -242,11 +227,9 @@ export class BrowserApplicationService {
     }
     return recovered;
   }
-
   async launch(options: LaunchOptions): Promise<BrowserSession> {
     const profile = this.profileRepository.findById(options.profileId);
     if (!profile) throw Object.assign(new Error('Profile not found.'), { code: 'NOT_FOUND' });
-
     const descriptor: BrowserRuntimeDescriptor = {
       engine: profile.engine as BrowserRuntimeDescriptor['engine'],
       distribution: profile.distribution as BrowserRuntimeDescriptor['distribution'],
@@ -261,13 +244,11 @@ export class BrowserApplicationService {
         code: 'BROWSER_AUTOMATION_PROTOCOL_UNAVAILABLE',
       });
     }
-
     const resolvedFingerprint = await this.resolvePreparedFingerprint(
       options.profileId,
       descriptor,
       profile.os,
     );
-
     this.lockManager.acquireInProcessMutex(options.profileId);
     let durableLockAcquired = false;
     let sessionCreated = false;
@@ -278,14 +259,12 @@ export class BrowserApplicationService {
     const pendingSession: PendingSession = {
       cancelRequested: false,
     };
-
     try {
       if (this.sessionRepository.getActiveForProfile(options.profileId)) {
         throw Object.assign(new Error('Profile already has an active browser session.'), {
           code: 'PROFILE_ALREADY_RUNNING',
         });
       }
-
       const validating = this.sessionRepository.create({
         id: sessionId,
         profileId: options.profileId,
@@ -299,11 +278,9 @@ export class BrowserApplicationService {
       this.pendingSessions.set(sessionId, pendingSession);
       this.publish(validating);
       this.transition(sessionId, 'acquiring_lock');
-
       this.lockManager.acquireDurableLock(options.profileId, profile.storage_key, sessionId);
       durableLockAcquired = true;
       this.transition(sessionId, 'preparing');
-
       const startedAt = this.now().toISOString();
       const proxy = profile.proxy_id
         ? await this.resolveConfiguredProxy(profile.proxy_id)
@@ -340,7 +317,6 @@ export class BrowserApplicationService {
           logger.error('Validated fingerprint envelope could not be cached.', error);
         }
       }
-
       const readyAt = this.now().toISOString();
       const view: BrowserSession = {
         sessionId,
@@ -425,7 +401,6 @@ export class BrowserApplicationService {
     const active = this.sessions.get(sessionId);
     if (!active) return;
     if (this.stoppingSessions.has(sessionId)) return;
-
     this.stoppingSessions.add(sessionId);
     active.view.state = 'stopping';
     this.transition(sessionId, 'stopping');
@@ -452,40 +427,32 @@ export class BrowserApplicationService {
       this.stoppingSessions.delete(sessionId);
     }
   }
-
   async shutdown(): Promise<void> {
     const sessionIds = new Set([...this.pendingSessions.keys(), ...this.sessions.keys()]);
     await Promise.allSettled([...sessionIds].map((sessionId) => this.stop(sessionId)));
     this.lockManager.shutdown();
   }
-
   listActive(): BrowserSession[] {
     return [...this.sessions.values()].map(({ view }) => ({ ...view }));
   }
-
   getSession(sessionId: string): BrowserSession | undefined {
     const session = this.sessions.get(sessionId)?.view;
     return session ? { ...session } : undefined;
   }
-
   getActiveForProfile(profileId: string): BrowserSession | undefined {
     return this.listActive().find((session) => session.profileId === profileId);
   }
-
   getRuntimeSnapshot(): ProfileRuntimeSnapshotEnvelope {
     return this.sessionRepository.getRuntimeSnapshot(this.now().toISOString());
   }
-
   getBufferedEvents(afterSequence: number): ProfileRuntimeEvent[] {
     return this.eventBuffer.filter((event) => event.sequence > afterSequence).map((event) => ({ ...event }));
   }
-
   subscribeRuntime(listener: (event: ProfileRuntimeEvent) => void, afterSequence = 0): () => void {
     for (const event of this.getBufferedEvents(afterSequence)) listener(event);
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
-
   private transition(
     sessionId: string,
     state: ProfileRuntimeState,
@@ -495,7 +462,6 @@ export class BrowserApplicationService {
     this.publish(event);
     return event;
   }
-
   private assertLaunchNotCancelled(pending: PendingSession): void {
     if (pending.cancelRequested) {
       throw Object.assign(new Error('Browser launch was cancelled by a stop request.'), {
@@ -503,7 +469,6 @@ export class BrowserApplicationService {
       });
     }
   }
-
   private handleUnexpectedExit(sessionId: string, exitCode?: number): void {
     if (this.stoppingSessions.has(sessionId)) return;
     const active = this.sessions.get(sessionId);
@@ -525,7 +490,6 @@ export class BrowserApplicationService {
         this.stoppingSessions.delete(sessionId);
       });
   }
-
   private assertPhaseOneRuntime(descriptor: BrowserRuntimeDescriptor): void {
     if (descriptor.engine !== 'chromium') {
       throw Object.assign(new Error('Fingerprint injection Phase 1 supports Chromium only.'), {
@@ -543,7 +507,6 @@ export class BrowserApplicationService {
       });
     }
   }
-
   private async resolvePreparedFingerprint(
     profileId: string,
     descriptor: BrowserRuntimeDescriptor,
@@ -577,7 +540,6 @@ export class BrowserApplicationService {
       }
       if (candidate === undefined) throw error;
     }
-
     const envelope = this.fingerprintValidator.validate(candidate, {
       targetEngine: 'chromium',
       targetOs: profileOs,
@@ -589,7 +551,6 @@ export class BrowserApplicationService {
       shouldCache: fromCloudOrDevelopmentProvider,
     };
   }
-
   private publish(event: ProfileRuntimeEvent): void {
     const previous = this.eventBuffer.at(-1);
     if (previous && event.sequence <= previous.sequence) {
@@ -606,7 +567,6 @@ export class BrowserApplicationService {
     }
   }
 }
-
 function getErrorCode(error: unknown): string {
   if (error instanceof Error && 'code' in error) {
     return String((error as Error & { code?: unknown }).code ?? 'LAUNCH_FAILED');

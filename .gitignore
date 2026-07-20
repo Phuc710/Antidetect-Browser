@@ -30,3 +30,6 @@ out/
 dist/
 apps/desktop-client/.packaging/
 apps/desktop-client/dist-main/
+
+# Scratch / test browser profile data (created by integration tests)
+.agents/scratch/

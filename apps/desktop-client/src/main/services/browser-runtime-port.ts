@@ -15,8 +15,10 @@ export interface BrowserSession extends BrowserRuntimeDescriptor {
   sessionId: string;
   profileId: string;
   state: ProfileRuntimeState;
-  pid: number;
-  automation: AutomationConnection;
+  /** OS process ID of the Chromium process, if available. */
+  pid?: number | undefined;
+  /** External automation connection details, if available. */
+  automation?: AutomationConnection | undefined;
   startedAt: string;
 }
 

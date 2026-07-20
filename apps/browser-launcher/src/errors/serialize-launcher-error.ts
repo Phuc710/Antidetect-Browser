@@ -18,6 +18,10 @@ const launcherErrorCodes = new Set<string>([
     'UNKNOWN_ERROR',
 ]);
 
+function isLauncherErrorCode(value: string): value is LauncherErrorCode {
+    return launcherErrorCodes.has(value);
+}
+
 export function serializeLauncherError(err: unknown): SerializedLauncherError {
     if (err instanceof LauncherError) {
         return {
@@ -33,8 +37,8 @@ export function serializeLauncherError(err: unknown): SerializedLauncherError {
             : null;
 
     const candidateCode = typeof obj?.code === 'string' ? obj.code : '';
-    const code: LauncherErrorCode = candidateCode
-        ? (candidateCode as LauncherErrorCode)
+    const code: LauncherErrorCode = isLauncherErrorCode(candidateCode)
+        ? candidateCode
         : 'UNKNOWN_ERROR';
 
     const message =
@@ -49,18 +53,16 @@ export function serializeLauncherError(err: unknown): SerializedLauncherError {
             ? (obj.details as Record<string, unknown>)
             : {};
 
-    const mergedDetails: Record<string, unknown> = {
-        ...details,
-    };
+    const mergedDetails: Record<string, unknown> = { ...details };
 
     if (obj?.stage) {
-        mergedDetails.stage = obj.stage;
+        mergedDetails['stage'] = String(obj.stage);
     }
-    if (obj?.stack) {
-        mergedDetails.stack = String(obj.stack);
-    }
+    // Stack traces are intentionally excluded from the serialized error.
+    // They are logged to the child-process terminal (console.error in orchestrator)
+    // but must not cross the IPC boundary to avoid leaking internals in production.
     if (obj?.executablePath) {
-        mergedDetails.executablePath = String(obj.executablePath);
+        mergedDetails['executablePath'] = String(obj.executablePath);
     }
 
     return {

@@ -100,7 +100,7 @@ describe('Playwright fingerprint injection order', () => {
       expect(session.state).toBe('running');
       expect(attachSpy).toHaveBeenCalledOnce();
       if (!processHandle) throw new Error('Browser process handle was not captured.');
-      if (session.automation.protocol !== 'cdp') throw new Error('Expected a CDP endpoint.');
+      if (!session.automation || session.automation.protocol !== 'cdp') throw new Error('Expected a CDP endpoint.');
       observer = await chromium.connectOverCDP(session.automation.endpoint);
       const context = observer.contexts()[0];
       if (!context) throw new Error('Injected browser context was not observable.');

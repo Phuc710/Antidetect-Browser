@@ -243,7 +243,6 @@ describe('Browser Launcher Refactored Pipeline - Unit Tests', () => {
             const session: BrowserSession = {
                 sessionId: 'sess-1',
                 profileId: 'prof-1',
-                pid: 1234,
                 state: 'running',
                 startedAt: '',
                 engine: 'chromium',
@@ -251,7 +250,6 @@ describe('Browser Launcher Refactored Pipeline - Unit Tests', () => {
                 channel: 'stable',
                 browserVersion: '120.0.0',
                 architecture: 'x64',
-                automation: {} as any,
                 browserHandle: runtimeMock,
             };
 
@@ -284,7 +282,6 @@ describe('Browser Launcher Refactored Pipeline - Unit Tests', () => {
             const session: BrowserSession = {
                 sessionId: 'sess-1',
                 profileId: 'prof-1',
-                pid: 1234,
                 state: 'running',
                 startedAt: '',
                 engine: 'chromium',
@@ -292,7 +289,6 @@ describe('Browser Launcher Refactored Pipeline - Unit Tests', () => {
                 channel: 'stable',
                 browserVersion: '120.0.0',
                 architecture: 'x64',
-                automation: {} as any,
                 browserHandle: runtimeMock,
             };
 
