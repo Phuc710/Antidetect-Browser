@@ -36,7 +36,15 @@ export function safeBrowserFailure(error: unknown): SafeBrowserFailure {
     : 'INTERNAL_ERROR';
   const known = FAILURES[candidate];
   if (!known) {
-    return { code: 'INTERNAL_ERROR', message: 'The operation could not be completed.', httpStatus: 500 };
+    console.error('[safeBrowserFailure] Unknown or unmapped error caught:', error);
+    const isDev = process.env.NODE_ENV === 'development';
+    return {
+      code: 'INTERNAL_ERROR',
+      message: isDev && error instanceof Error
+        ? `${error.message}${ (error as any).stage ? ` (at stage: ${(error as any).stage})` : '' }`
+        : 'The operation could not be completed.',
+      httpStatus: 500
+    };
   }
   return { code: candidate, ...known };
 }

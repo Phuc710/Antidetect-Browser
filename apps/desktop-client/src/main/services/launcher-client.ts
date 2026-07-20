@@ -316,7 +316,12 @@ export class LauncherClient implements BrowserRuntimePort {
   }
 
   private deserializeError(error: SerializedLauncherError): Error {
-    return Object.assign(new Error(error.message), { code: error.code });
+    const details = error.details && typeof error.details === 'object' ? error.details : {};
+    return Object.assign(new Error(error.message), {
+      code: error.code,
+      details,
+      stage: details['stage'] || 'unknown',
+    });
   }
 
   private cleanupProcess(error: Error) {

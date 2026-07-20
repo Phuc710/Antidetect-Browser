@@ -81,6 +81,8 @@ export class BrowserLaunchOrchestrator {
     async execute(payload: LaunchProfilePayload): Promise<any> {
         const plan = this.launchPlanBuilder.build(payload);
         const scope = new LaunchCleanupScope(plan.identity, this.lockManager);
+        let currentStage = 'initialize';
+        let resolvedExecutablePath = '';
 
         try {
             // 1. Validating State Change Event
@@ -94,6 +96,8 @@ export class BrowserLaunchOrchestrator {
             }
 
             // 2. Resolve runtime & compatibility check (before lock acquisition)
+            currentStage = 'resolve_runtime';
+            console.log(`[STAGE:${currentStage}] Resolving compatible browser runtime for ${plan.runtime.engine}/${plan.runtime.distribution}/${plan.runtime.browserVersion}...`);
             const resolvedRuntime = await this.runtimeRegistry.resolveAndVerify(
                 {
                     engine: plan.runtime.engine,
@@ -103,45 +107,64 @@ export class BrowserLaunchOrchestrator {
                     architecture: plan.runtime.architecture,
                 },
             );
+            resolvedExecutablePath = resolvedRuntime.executablePath;
+            console.log(`[STAGE:${currentStage}] Resolved executable path successfully: ${resolvedExecutablePath}`);
 
             // 3. Acquiring Locks
-            this.publishState(plan, 'acquiring_lock', 2);
+            currentStage = 'acquire_lock';
+            console.log(`[STAGE:${currentStage}] Acquiring durable file lock for profile ${plan.identity.profileId}...`);
             this.lockManager.acquireDurableLock(
                 plan.identity.profileId,
                 plan.runtime.userDataDir,
                 plan.identity.sessionId,
             );
             scope.markLockAcquired();
+            console.log(`[STAGE:${currentStage}] Durable lock acquired successfully.`);
 
             // 4. Preparing configuration
+            currentStage = 'preparing';
             this.publishState(plan, 'preparing', 3);
 
             // 5. Launching native process with resolved executable path
+            currentStage = 'chromium_launch';
+            console.log(`[STAGE:${currentStage}] Spawning native Chromium process at: ${resolvedExecutablePath}...`);
             const processHandle = await this.processLauncher.launch(
                 plan,
                 resolvedRuntime,
             );
             scope.setProcessHandle(processHandle);
+            console.log(`[STAGE:${currentStage}] Native browser process spawned. PID: ${processHandle.pid}`);
 
             // 6. Starting & Connecting context
+            currentStage = 'cdp_connect';
             this.publishState(plan, 'starting', 4);
+            console.log(`[STAGE:${currentStage}] Connecting Playwright CDP client to debugging port...`);
             const runtime = await PlaywrightRuntimeAdapter.connect(
                 processHandle,
                 this.fingerprintService,
             );
             scope.setRuntime(runtime);
+            console.log(`[STAGE:${currentStage}] Playwright client connected.`);
 
             // Inject cookies if present
             if (plan.cookies.length > 0) {
+                currentStage = 'cookie_injection';
+                console.log(`[STAGE:${currentStage}] Injecting ${plan.cookies.length} cookies into browser context...`);
                 await runtime.injectCookies(plan.cookies);
+                console.log(`[STAGE:${currentStage}] Cookies injected.`);
             }
 
             // 7. Applying Fingerprint & Verification
+            currentStage = 'fingerprint_injection';
+            console.log(`[STAGE:${currentStage}] Injecting fingerprint configuration and anti-detect hooks...`);
             await runtime.applyFingerprint(
                 plan.fingerprint.fingerprintWithHeaders,
                 plan.fingerprint.markerScript,
             );
+            console.log(`[STAGE:${currentStage}] Fingerprint injection complete.`);
 
+            currentStage = 'readiness';
+            console.log(`[STAGE:${currentStage}] Running readiness verification check page...`);
             const readinessReport = await this.readinessChecker.verify(
                 runtime,
                 plan,
@@ -151,6 +174,7 @@ export class BrowserLaunchOrchestrator {
                     report: readinessReport,
                 } as any);
             }
+            console.log(`[STAGE:${currentStage}] Readiness verification check passed.`);
 
             const session: BrowserSession = {
                 sessionId: plan.identity.sessionId,
@@ -185,7 +209,14 @@ export class BrowserLaunchOrchestrator {
                 automation: session.automation,
                 startedAt: session.startedAt,
             };
-        } catch (error) {
+        } catch (error: any) {
+            console.error(`[LAUNCH_ERROR] Failed at stage: ${currentStage}`, error);
+            if (error && typeof error === 'object') {
+                error.stage = currentStage;
+                if (resolvedExecutablePath) {
+                    error.executablePath = resolvedExecutablePath;
+                }
+            }
             await scope.cleanup();
             throw error;
         }

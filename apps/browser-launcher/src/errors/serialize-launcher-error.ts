@@ -33,7 +33,7 @@ export function serializeLauncherError(err: unknown): SerializedLauncherError {
             : null;
 
     const candidateCode = typeof obj?.code === 'string' ? obj.code : '';
-    const code: LauncherErrorCode = launcherErrorCodes.has(candidateCode)
+    const code: LauncherErrorCode = candidateCode
         ? (candidateCode as LauncherErrorCode)
         : 'UNKNOWN_ERROR';
 
@@ -47,11 +47,25 @@ export function serializeLauncherError(err: unknown): SerializedLauncherError {
         typeof obj.details === 'object' &&
         !Array.isArray(obj.details)
             ? (obj.details as Record<string, unknown>)
-            : undefined;
+            : {};
+
+    const mergedDetails: Record<string, unknown> = {
+        ...details,
+    };
+
+    if (obj?.stage) {
+        mergedDetails.stage = obj.stage;
+    }
+    if (obj?.stack) {
+        mergedDetails.stack = String(obj.stack);
+    }
+    if (obj?.executablePath) {
+        mergedDetails.executablePath = String(obj.executablePath);
+    }
 
     return {
         code,
         message,
-        ...(details ? { details } : {}),
+        ...(Object.keys(mergedDetails).length > 0 ? { details: mergedDetails } : {}),
     };
 }

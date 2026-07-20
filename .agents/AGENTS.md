@@ -214,3 +214,13 @@ Border Radii:
 * **DTO and Schema Safety**: Leverage strong TypeScript types and schemas (DTOs) for IPC data exchange. Any data structure sent across boundary processes must be explicitly validated.
 * **Keep Code DRY**: Abstract common algorithms, date formatting, and string manipulation helpers into a central `utils/` or `shared/` library. Avoid inline helper functions inside component hooks.
 
+## 6. NGUYÊN TẮC LÀM VIỆC (WORKING PRINCIPLES)
+* **Một lần = một chức năng hoàn chỉnh**: Làm việc theo từng tính năng trọn vẹn, không dở dang.
+* **Đọc code trước**: Nghiên cứu kỹ cấu trúc tệp tin và mã nguồn hiện tại trước khi sửa đổi.
+* **Thiết kế ngắn gọn**: Đề xuất giải pháp tối giản, hiệu quả và dễ bảo trì.
+* **Code sạch**: Tránh biến phụ, casting unsafe, và tuân thủ nguyên tắc DRY & OOP.
+* **Test thật & Chạy thật**: Luôn chạy unit/integration tests và khởi chạy thử nghiệm thực tế.
+* **Làm gì báo đúng cái đó**: Báo cáo trung thực tiến độ và thay đổi, không tự nhận "hoàn thành" khi chưa có bằng chứng/kết quả test thật.
+* **Không làm được phải nói chưa làm được**: Gặp lỗi hoặc giới hạn kỹ thuật thì thông báo rõ ràng để thảo luận phương án giải quyết.
+
+
