@@ -8,8 +8,11 @@ import { ProfileLockManager } from './runtime/profile-lock-manager.js';
 import { SessionLifecycleManager } from './runtime/session-lifecycle-manager.js';
 import { CookieSyncCoordinator } from './cookies/cookie-sync-coordinator.js';
 
+import { BrowserRuntimeRegistry } from './runtime-compatibility/browser-runtime-registry.js';
+
 const registry = new SessionRegistry();
 const lockManager = new ProfileLockManager();
+const runtimeRegistry = new BrowserRuntimeRegistry();
 
 let router: CommandRouter;
 
@@ -25,7 +28,8 @@ const launchOrchestrator = new BrowserLaunchOrchestrator(
   lockManager,
   lifecycleManager,
   cookieSyncCoordinator,
-  transport
+  transport,
+  runtimeRegistry
 );
 
 const stopOrchestrator = new BrowserStopOrchestrator(registry, lifecycleManager);
@@ -36,7 +40,8 @@ router = new CommandRouter(
   stopOrchestrator,
   shutdownOrchestrator,
   registry,
-  transport
+  transport,
+  runtimeRegistry
 );
 
 // Listen to parent message loop

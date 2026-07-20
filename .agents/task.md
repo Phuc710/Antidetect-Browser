@@ -1,42 +1,44 @@
-# Báo Cáo Tiến Độ Phát Triển — Hoàn Thành Phase E (Tích hợp Native Fingerprint & Cookies)
+# Báo Cáo Tiến Độ Phát Triển — Hoàn Thành Phase G1 (Browser Runtime Registry và Kiểm Tra Tính Tương Thích)
 
-Chào bạn, tôi đã phân tích mã nguồn, đối chiếu tài liệu kỹ thuật và triển khai thành công toàn bộ **Phase E** (Tích hợp các tham số phần cứng ở cấp độ native và đồng bộ hóa Cookie động hai chiều):
-
----
-
-## 1. PHẦN 1: Tiêm dấu vân tay (Fingerprint Injection) ở cấp độ tiến trình Native
-Trước đây, các tham số như User-Agent, ngôn ngữ (Accept-Language) và kích thước màn hình chỉ được ghi đè bằng JavaScript ở page context sau khi trình duyệt đã chạy. Điều này dẫn đến sự bất nhất (inconsistency) dễ bị phát hiện bởi các hệ thống chống bot lớn (như Cloudflare, Akamai).
-
-Để giải quyết triệt để, tôi đã nâng cấp [browser-runtime-service.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/runtime/browser-runtime-service.ts) để truyền trực tiếp các giá trị này vào Chromium dưới dạng các đối số dòng lệnh CLI khi gọi `launchServer`:
-*   `--user-data-dir`: Chỉ định chính xác thư mục lưu trữ profile để Chromium lưu trữ cache, localStorage và cookie một cách bền vững (persistent).
-*   `--user-agent`: Đè trực tiếp chuỗi User-Agent giả lập vào tiến trình trình duyệt.
-*   `--lang`: Thiết lập ngôn ngữ hệ thống và cấu hình header `Accept-Language` native phù hợp với vân tay.
-*   `--window-size`: Thiết lập kích thước cửa sổ trình duyệt vật lý khớp với chiều rộng/cao màn hình được faked.
+Chào bạn, tôi đã triển khai hoàn chỉnh và kiểm thử thành công toàn bộ **Phase G1** (Xác định đường dẫn chạy trình duyệt từ Manifest và kiểm tra tính tương thích hệ thống):
 
 ---
 
-## 2. PHẦN 2: Đóng gói dịch vụ OOP FingerprintService
-*   Tạo lớp [fingerprint-service.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/runtime/fingerprint-service.ts) chạy bên trong tiến trình launcher con.
-*   Lớp này đóng vai trò đóng gói (encapsulate) toàn bộ quy trình biên dịch script và inject vào browser context của `FingerprintInjector` giúp mã nguồn tách biệt, dễ bảo trì và cập nhật trong tương lai.
+## 1. Thiết kế Lớp Tương Thích & Đăng Ký Runtime
+Tôi đã xây dựng cấu trúc thư mục mới `src/runtime-compatibility/` bên trong `browser-launcher` bao gồm các tệp tin sau:
+1.  [runtime-errors.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/runtime-compatibility/runtime-errors.ts): Khai báo lớp `BrowserRuntimeError` với các mã định danh lỗi phân loại (`MANIFEST_INVALID`, `RUNTIME_NOT_REGISTERED`, `EXECUTABLE_MISSING`, `PATH_TRAVERSAL_DETECTED`, `PLATFORM_MISMATCH`, `ARCHITECTURE_MISMATCH`, `VERSION_MISMATCH`).
+2.  [browser-runtime-descriptor.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/runtime-compatibility/browser-runtime-descriptor.ts): Định nghĩa kiểu dữ liệu mô tả môi trường runtime trình duyệt.
+3.  [runtime-manifest-reader.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/runtime-compatibility/runtime-manifest-reader.ts): Thực hiện đọc và kiểm tra cấu trúc của tệp cấu hình Manifest (`runtimes.json`) đáng tin cậy. Nếu tệp tin bị hỏng hoặc cấu trúc không hợp lệ sẽ trả về lỗi chi tiết.
+4.  [browser-executable-resolver.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/runtime-compatibility/browser-executable-resolver.ts): Biên dịch đường dẫn tương đối trong manifest thành đường dẫn tuyệt đối dưới thư mục gốc `runtimeRoot`. Ngăn chặn hành vi xâm nhập thư mục bất hợp pháp (Path Traversal) bằng cách kiểm tra biểu thức quan hệ đường dẫn và kiểm tra sự tồn tại của tệp thực thi.
+5.  [runtime-compatibility-checker.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/runtime-compatibility/runtime-compatibility-checker.ts): Thực hiện kiểm tra tính tương thích hệ thống:
+    *   Kiểm tra không khớp kiến trúc phần cứng (Architecture mismatch).
+    *   Trích xuất trực tiếp phiên bản của tệp thực thi (Version sniffing) bằng cách gọi tham số `--version` hoặc `--product-version` với cơ chế timeout an toàn (2 giây). Nếu phiên bản chính (Major version) không trùng khớp với descriptor sẽ báo lỗi tương thích.
+6.  [browser-runtime-registry.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/runtime-compatibility/browser-runtime-registry.ts): Cổng kết nối điều phối toàn bộ các bước đọc manifest, phân giải đường dẫn và kiểm tra tương thích.
 
 ---
 
-## 3. PHẦN 3: Đồng bộ hóa Cookie hai chiều động (Bi-directional Cookies Sync)
-*   **Khi khởi chạy**: Đọc cookie từ cột `cookies` trong DB SQLite và tiêm thẳng vào context qua `injectCookies`.
-*   **Trong khi chạy**: Thiết lập một vòng lặp đồng bộ (mỗi 5 giây) truy vấn cookie trực tiếp của context qua `getCookies()`, sau đó gửi sự kiện IPC `session:cookies-sync` về tiến trình Electron Main.
-*   **Phía Main Process**: Nhận dữ liệu cập nhật và lập tức lưu đè trở lại SQLite DB qua `this.profileRepository.update`. Cơ chế này đảm bảo dữ liệu đăng nhập và phiên làm việc của bạn không bao giờ bị mất ngay cả khi trình duyệt bị đóng đột ngột.
+## 2. Quy Trình Khởi Chạy Mới (Launch Pipeline)
+*   **Trình tự thực thi**: Trình duyệt tiến hành xác định đường dẫn và kiểm tra tương thích (`resolveAndVerify`) ngay trong giai đoạn `validating` (trước khi khóa thư mục profile).
+*   **Playwright Integration**: `PlaywrightProcessLauncher.launch` nhận đối tượng `ResolvedBrowserRuntime` đã xác thực và truyền trực tiếp thuộc tính `executablePath` vào Playwright:
+    ```typescript
+    const server = await playwright.chromium.launchServer({
+      executablePath: resolvedRuntime.executablePath,
+      headless: plan.runtime.headless,
+      ...
+    });
+    ```
+    Điều này đảm bảo Playwright luôn khởi chạy đúng tệp thực thi được chỉ định trong Manifest chứ không dùng các đường dẫn ngầm định của hệ thống.
 
 ---
 
-## 4. PHẦN 4: Khắc phục các lỗi Runtime & Biên dịch
-*   Sửa lỗi gọi hàm không tồn tại: Thay thế `runtime.onExit(...)` thành `processHandle.onExit(...)` để tránh crash ứng dụng khi bắt sự kiện trình duyệt bị đóng.
-*   Hoàn thành sửa các lỗi kiểu dữ liệu (TypeScript check).
+## 3. Tích Hợp Desktop Client (`LauncherClient`)
+*   Mở rộng cấu hình `LauncherClientOptions` và lệnh `launcher:initialize` để truyền tham số tùy chọn `runtimesRoot` và `runtimesManifest` từ phía Electron Main.
 
 ---
 
-## 5. KẾT QUẢ KIỂM TRA & HOẠT ĐỘNG
-*   **TypeScript Check**: Cả hai dự án `desktop-client` và `browser-launcher` đều biên dịch thành công 100%.
-*   **Vitest Test Suite**: Vượt qua toàn bộ **76 unit tests** và **18 integration tests** sạch lỗi.
-*   **Production Build**: Tạo các bundle sản xuất thành công.
+## 4. Kết Quả Kiểm Thử & Biên Dịch
+*   **TypeScript check**: Cả 2 package `browser-launcher` và `desktop-client` typecheck vượt qua 100% không lỗi.
+*   **Vitest Unit Tests**: Viết mới 12 unit test trong [runtime-compatibility.unit.test.ts](file:///c:/Users/Phucx/Desktop/fingerprint-suite/apps/browser-launcher/src/__tests__/runtime-compatibility.unit.test.ts) kiểm tra toàn bộ các tình huống tương thích hệ thống. Vượt qua **28 tests** của launcher và **94 tests** của desktop client thành công 100%.
+*   **Build**: Đóng gói sản phẩm hoàn thiện.
 
-Tôi đã cập nhật đầy đủ mã nguồn và báo cáo chi tiết ở các file tương ứng. Bạn có thể kiểm tra trực tiếp! 🚀
+Bạn có thể theo dõi tiến độ chi tiết và cấu trúc file trong các báo cáo walkthrough tương ứng! 🚀

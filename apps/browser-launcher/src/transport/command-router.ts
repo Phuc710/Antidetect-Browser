@@ -4,6 +4,7 @@ import { BrowserStopOrchestrator } from '../application/browser-stop-orchestrato
 import { ShutdownOrchestrator } from '../application/shutdown-orchestrator.js';
 import { SessionRegistry } from '../runtime/session-registry.js';
 import type { ProcessTransport } from './process-transport.js';
+import { BrowserRuntimeRegistry } from '../runtime-compatibility/browser-runtime-registry.js';
 
 export class CommandRouter {
   private isInitialized = false;
@@ -14,6 +15,7 @@ export class CommandRouter {
     private readonly shutdownOrchestrator: ShutdownOrchestrator,
     private readonly registry: SessionRegistry,
     private readonly transport: ProcessTransport,
+    private readonly runtimeRegistry: BrowserRuntimeRegistry,
   ) {}
 
   async route(cmd: LauncherCommand): Promise<void> {
@@ -22,6 +24,11 @@ export class CommandRouter {
     switch (type) {
       case 'launcher:initialize': {
         this.isInitialized = true;
+        
+        const root = cmd.payload.runtimesRoot || process.env.BROWSER_RUNTIMES_ROOT || './runtimes';
+        const manifest = cmd.payload.runtimesManifest || process.env.BROWSER_RUNTIMES_MANIFEST || './runtimes.json';
+        this.runtimeRegistry.initialize(root, manifest);
+
         this.transport.sendSuccess(requestId);
         break;
       }

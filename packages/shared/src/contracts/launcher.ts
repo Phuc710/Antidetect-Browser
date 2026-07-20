@@ -23,6 +23,8 @@ export interface SerializedLauncherError {
 export type LauncherInitializePayload = {
   applicationMode: 'production' | 'development' | 'test' | 'integration_test';
   deviceId: string;
+  runtimesRoot?: string;
+  runtimesManifest?: string;
 };
 
 export interface LaunchProfilePayload {

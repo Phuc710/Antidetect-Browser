@@ -52,6 +52,14 @@ export class CommandValidator {
           if (typeof deviceId !== 'string' || !deviceId) {
             issues.push({ path: 'payload.deviceId', message: 'Invalid or missing deviceId.' });
           }
+          const runtimesRoot = payload['runtimesRoot'];
+          if (runtimesRoot !== undefined && typeof runtimesRoot !== 'string') {
+            issues.push({ path: 'payload.runtimesRoot', message: 'runtimesRoot must be a string.' });
+          }
+          const runtimesManifest = payload['runtimesManifest'];
+          if (runtimesManifest !== undefined && typeof runtimesManifest !== 'string') {
+            issues.push({ path: 'payload.runtimesManifest', message: 'runtimesManifest must be a string.' });
+          }
         }
         break;
       }

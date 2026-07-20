@@ -10,6 +10,7 @@ import { ReadinessChecker } from '../runtime/readiness-checker.js';
 import { FingerprintService } from '../fingerprint/fingerprint-service.js';
 import { LauncherError } from '../errors/launcher-error.js';
 import type { ProcessTransport } from '../transport/process-transport.js';
+import { BrowserRuntimeRegistry } from '../runtime-compatibility/browser-runtime-registry.js';
 
 export class LaunchCleanupScope {
   private lockAcquired = false;
@@ -59,6 +60,7 @@ export class BrowserLaunchOrchestrator {
     private readonly lifecycleManager: SessionLifecycleManager,
     private readonly cookieSyncCoordinator: CookieSyncCoordinator,
     private readonly transport: ProcessTransport,
+    private readonly runtimeRegistry: BrowserRuntimeRegistry,
   ) {}
 
   async execute(payload: LaunchProfilePayload): Promise<any> {
@@ -74,7 +76,16 @@ export class BrowserLaunchOrchestrator {
         throw LauncherError.profileAlreadyRunning(plan.identity.profileId);
       }
 
-      // 2. Acquiring Locks
+      // 2. Resolve runtime & compatibility check (before lock acquisition)
+      const resolvedRuntime = this.runtimeRegistry.resolveAndVerify({
+        engine: plan.runtime.engine,
+        distribution: plan.runtime.distribution,
+        channel: plan.runtime.channel,
+        browserVersion: plan.runtime.browserVersion,
+        architecture: plan.runtime.architecture,
+      });
+
+      // 3. Acquiring Locks
       this.publishState(plan, 'acquiring_lock', 2);
       this.lockManager.acquireDurableLock(
         plan.identity.profileId,
@@ -83,14 +94,14 @@ export class BrowserLaunchOrchestrator {
       );
       scope.markLockAcquired();
 
-      // 3. Preparing configuration
+      // 4. Preparing configuration
       this.publishState(plan, 'preparing', 3);
 
-      // 4. Launching native process
-      const processHandle = await this.processLauncher.launch(plan);
+      // 5. Launching native process with resolved executable path
+      const processHandle = await this.processLauncher.launch(plan, resolvedRuntime);
       scope.setProcessHandle(processHandle);
 
-      // 5. Starting & Connecting context
+      // 6. Starting & Connecting context
       this.publishState(plan, 'starting', 4);
       const runtime = await PlaywrightRuntimeAdapter.connect(processHandle, this.fingerprintService);
       scope.setRuntime(runtime);
@@ -100,7 +111,7 @@ export class BrowserLaunchOrchestrator {
         await runtime.injectCookies(plan.cookies);
       }
 
-      // 6. Applying Fingerprint & Verification
+      // 7. Applying Fingerprint & Verification
       await runtime.applyFingerprint(
         plan.fingerprint.fingerprintWithHeaders,
         plan.fingerprint.markerScript,
@@ -129,7 +140,7 @@ export class BrowserLaunchOrchestrator {
         browserHandle: runtime,
       };
 
-      // 7. Handing off running session
+      // 8. Handing off running session
       this.registry.add(session);
       this.lifecycleManager.watch(session);
       this.cookieSyncCoordinator.start(session);

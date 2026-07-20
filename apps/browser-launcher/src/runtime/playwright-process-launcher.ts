@@ -1,5 +1,6 @@
 import net from 'net';
 import type { BrowserLaunchPlan } from '../application/launch-plan-builder.js';
+import type { ResolvedBrowserRuntime } from '../runtime-compatibility/browser-executable-resolver.js';
 
 export interface BrowserProcessHandle {
   pid: number;
@@ -13,7 +14,7 @@ export interface BrowserProcessHandle {
 }
 
 export class PlaywrightProcessLauncher {
-  async launch(plan: BrowserLaunchPlan): Promise<BrowserProcessHandle> {
+  async launch(plan: BrowserLaunchPlan, resolvedRuntime: ResolvedBrowserRuntime): Promise<BrowserProcessHandle> {
     if (plan.runtime.engine !== 'chromium') {
       throw Object.assign(new Error('Only Chromium is supported by fingerprint injection in Phase 1.'), {
         code: 'BROWSER_ENGINE_UNAVAILABLE',
@@ -33,6 +34,7 @@ export class PlaywrightProcessLauncher {
     ];
 
     const server = await playwright.chromium.launchServer({
+      executablePath: resolvedRuntime.executablePath,
       headless: plan.runtime.headless,
       ...(plan.proxy ? { proxy: plan.proxy } : {}),
       args,

@@ -47,6 +47,8 @@ export interface LauncherClientOptions {
   storageResolver?: ProfileStorageResolver | undefined;
   fingerprintMapper?: ((envelope: any) => PreparedFingerprintInjection) | undefined;
   canUseOfflineFingerprintCache?: ((profileId: string) => boolean) | undefined;
+  runtimesRoot?: string | undefined;
+  runtimesManifest?: string | undefined;
 }
 
 interface ResolvedPreparedFingerprint {
@@ -83,6 +85,8 @@ export class LauncherClient implements BrowserRuntimePort {
   private readonly deviceId: string;
   private readonly launcherScriptPath?: string | undefined;
   private readonly pendingCookieUpdates = new Map<string, { cookies: string; timeout: NodeJS.Timeout }>();
+  private readonly runtimesRoot?: string | undefined;
+  private readonly runtimesManifest?: string | undefined;
 
   constructor(
     databaseService: DatabaseConnectionProvider,
@@ -101,6 +105,8 @@ export class LauncherClient implements BrowserRuntimePort {
     this.applicationMode = options.applicationMode ?? 'development';
     this.deviceId = options.deviceId ?? 'local_device';
     this.launcherScriptPath = options.launcherScriptPath;
+    this.runtimesRoot = options.runtimesRoot;
+    this.runtimesManifest = options.runtimesManifest;
   }
 
   async initialize(): Promise<void> {
@@ -267,6 +273,8 @@ export class LauncherClient implements BrowserRuntimePort {
       payload: {
         applicationMode: this.applicationMode,
         deviceId: this.deviceId,
+        ...(this.runtimesRoot ? { runtimesRoot: this.runtimesRoot } : {}),
+        ...(this.runtimesManifest ? { runtimesManifest: this.runtimesManifest } : {}),
       },
     });
   }
