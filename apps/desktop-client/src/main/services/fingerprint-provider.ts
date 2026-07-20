@@ -82,8 +82,21 @@ class LocalWorkspaceFingerprintGenerator implements DevelopmentFingerprintGenera
       locales: ['en-US'],
       mockWebRTC: true,
     });
+
+    const fingerprint = { ...generated.fingerprint } as any;
+    if (fingerprint.navigator) {
+      fingerprint.navigator = { ...fingerprint.navigator };
+      fingerprint.navigator.extraProperties = {
+        installedApps: [],
+        vendorFlavors: [],
+        globalPrivacyControl: null,
+        pdfViewerEnabled: true,
+        ...fingerprint.navigator.extraProperties,
+      };
+    }
+
     return {
-      fingerprint: { ...generated.fingerprint },
+      fingerprint,
       headers: { ...generated.headers },
     };
   }

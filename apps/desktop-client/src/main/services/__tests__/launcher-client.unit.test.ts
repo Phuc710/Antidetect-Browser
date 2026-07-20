@@ -39,22 +39,28 @@ describe('LauncherClient unit tests', () => {
   it('initializes and executes commands successfully', async () => {
     const mockDb = {
       getConnection: () => ({
-        prepare: () => ({
+        transaction: (cb: () => any) => () => cb(),
+        prepare: (sql: string) => ({
           all: () => [],
-          get: () => ({
-            id: 'profile_1',
-            workspace_id: 'default_ws',
-            name: 'Test Profile',
-            os: 'windows',
-            engine: 'chromium',
-            distribution: 'chromium',
-            channel: 'stable',
-            browser_version: 'latest',
-            architecture: 'x64',
-            storage_key: 'test_profile_key',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }),
+          get: () => {
+            if (sql.includes('FROM browser_sessions')) {
+              return null;
+            }
+            return {
+              id: 'profile_1',
+              workspace_id: 'default_ws',
+              name: 'Test Profile',
+              os: 'windows',
+              engine: 'chromium',
+              distribution: 'chromium',
+              channel: 'stable',
+              browser_version: 'latest',
+              architecture: 'x64',
+              storage_key: 'test_profile_key',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+          },
           run: () => ({ changes: 0 }),
         }),
       }) as any,

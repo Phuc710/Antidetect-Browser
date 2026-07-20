@@ -339,6 +339,12 @@ export class LauncherClient implements BrowserRuntimePort {
     const profile = this.profileRepository.findById(options.profileId);
     if (!profile) throw Object.assign(new Error('Profile not found.'), { code: 'NOT_FOUND' });
 
+    if (this.sessionRepository.getActiveForProfile(options.profileId)) {
+      throw Object.assign(new Error('Profile already has an active browser session.'), {
+        code: 'PROFILE_ALREADY_RUNNING',
+      });
+    }
+
     const descriptor: BrowserRuntimeDescriptor = {
       engine: profile.engine as BrowserRuntimeDescriptor['engine'],
       distribution: profile.distribution as BrowserRuntimeDescriptor['distribution'],
@@ -391,6 +397,21 @@ export class LauncherClient implements BrowserRuntimePort {
       },
     };
 
+    // Insert database session prior to command routing
+    this.sessionRepository.create({
+      id: sessionId,
+      profileId: options.profileId,
+      deviceId: this.deviceId,
+      state: 'validating',
+      automationProtocol: 'cdp',
+      occurredAt: new Date().toISOString(),
+      engine: descriptor.engine,
+      distribution: descriptor.distribution,
+      channel: descriptor.channel,
+      browserVersion: descriptor.browserVersion,
+      architecture: descriptor.architecture,
+    });
+
     if (resolvedFingerprint.shouldCache) {
       try {
         this.fingerprintCacheRepository.store(
@@ -403,11 +424,28 @@ export class LauncherClient implements BrowserRuntimePort {
       }
     }
 
-    return this.sendCommand<BrowserSession>({
-      type: 'profile:launch',
-      requestId: randomUUID(),
-      payload,
-    });
+    try {
+      return await this.sendCommand<BrowserSession>({
+        type: 'profile:launch',
+        requestId: randomUUID(),
+        payload,
+      });
+    } catch (err: unknown) {
+      try {
+        const errorCode =
+          err && typeof err === 'object' && 'code' in err
+            ? String((err as Record<string, unknown>).code)
+            : 'LAUNCH_FAILED';
+        this.sessionRepository.transition(sessionId, 'error', new Date().toISOString(), {
+          stoppedAt: new Date().toISOString(),
+          terminationReason: 'launch_failed',
+          errorCode,
+        });
+      } catch (dbErr) {
+        logger.error('Failed to transition failed session to error state', dbErr);
+      }
+      throw err;
+    }
   }
 
   private async resolveConfiguredProxy(proxyId: string): Promise<BrowserLaunchProxy> {

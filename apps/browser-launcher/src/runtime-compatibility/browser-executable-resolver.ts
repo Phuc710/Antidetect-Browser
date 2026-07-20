@@ -28,7 +28,24 @@ export class BrowserExecutableResolver {
 
         // 1. Get matches for logical key: engine:distribution:channel:version
         const key = `${descriptor.engine}:${descriptor.distribution}:${descriptor.channel}:${descriptor.browserVersion}`;
-        const platformMap = this.manifestIndex.get(key);
+        let platformMap = this.manifestIndex.get(key);
+
+        if (!platformMap) {
+            // Fallback 1: Try to look for 'latest' version of the same engine, distribution, and channel
+            const fallbackKey = `${descriptor.engine}:${descriptor.distribution}:${descriptor.channel}:latest`;
+            platformMap = this.manifestIndex.get(fallbackKey);
+        }
+
+        if (!platformMap) {
+            // Fallback 2: Try to look for ANY registered version matching the same engine, distribution, and channel
+            const prefix = `${descriptor.engine}:${descriptor.distribution}:${descriptor.channel}:`;
+            for (const [mk, map] of this.manifestIndex.entries()) {
+                if (mk.startsWith(prefix)) {
+                    platformMap = map;
+                    break;
+                }
+            }
+        }
 
         if (!platformMap) {
             throw new BrowserRuntimeError(
